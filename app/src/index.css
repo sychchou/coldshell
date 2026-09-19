@@ -880,8 +880,6 @@ button.nav-link:focus-visible {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
-  border-left: 2px solid transparent;
-  margin-left: -2px;
 }
 
 .cal3-head,
@@ -915,30 +913,11 @@ button.nav-link:focus-visible {
   opacity: 0.55;
 }
 
-.cal3-week[data-row='mine'] {
-  border-left-color: var(--command);
-  background: color-mix(in srgb, var(--command) 14%, transparent);
-}
-
-.cal3-week[data-row='mine'] .cal3-gutter {
-  color: var(--command);
-}
-
 /* With the short clock there is no month to sit in, so the shells are simply listed. */
 .cal3-list {
   margin: 0.6em 0 0.4em;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-}
-
-.cal3-row {
-  padding-left: 0.5em;
-  border-left: 2px solid transparent;
-}
-
-.cal3-row[data-row='mine'] {
-  border-left-color: var(--command);
-  color: var(--command);
 }
 
 .cal3-row .cal3-gutter {

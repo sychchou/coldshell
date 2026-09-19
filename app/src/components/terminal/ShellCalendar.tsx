@@ -10,9 +10,8 @@ const MONTHS = [
 /** Enough months to hold the longest run anyone can commit to. */
 const SPAN = 3
 
-/** Only two things need telling apart: the weeks being bought, and everything else. */
-const rowOf = (shell: number, now: number, mine: boolean) =>
-  mine ? 'mine' : shell < now ? 'past' : 'open'
+/** Weeks that have been and gone are kept quiet. Nothing else needs a colour. */
+const rowOf = (shell: number, now: number) => (shell < now ? 'past' : 'open')
 
 const gutter = (shell: number, now: number) =>
   shell < now ? '' : shell === now ? 'ing' : `#${shell}`
@@ -54,15 +53,14 @@ export function ShellCalendar({ first, shells }: { first: number; shells: number
           ? `pay now and your first shell is #${first}, starting ${SHORT_CLOCK ? '' : 'monday '}${moment(start)}.`
           : `shell #${first}${shells > 1 ? ` – #${last}` : ''} · ${moment(start)} → ${moment(end)}`}
       </p>
-      {SHORT_CLOCK ? <ShellList first={first} shells={shells} /> : <Months first={first} shells={shells} now={now.shell} />}
+      {SHORT_CLOCK ? <ShellList now={now.shell} /> : <Months now={now.shell} />}
     </div>
   )
 }
 
-function Months({ first, shells, now }: { first: number; shells: number | null; now: number }) {
+function Months({ now }: { now: number }) {
   const from = new Date()
   const months = Array.from({ length: SPAN }, (_, i) => new Date(from.getFullYear(), from.getMonth() + i, 1))
-  const mine = (shell: number) => shell >= first && shell < first + (shells ?? 1)
 
   return (
     <div className="cal3">
@@ -92,7 +90,7 @@ function Months({ first, shells, now }: { first: number; shells: number | null; 
               ))}
 
               {rows.map(({ shell, days }) => (
-                  <div className="cal3-week" key={shell} data-row={rowOf(shell, now, mine(shell))}>
+                  <div className="cal3-week" key={shell} data-row={rowOf(shell, now)}>
                     {/* A week that has been and gone needs no name; it is only there to count from.
                         The one running says so instead of its number, which nobody can use. */}
                     <span className="cal3-gutter">{gutter(shell, now)}</span>
@@ -117,15 +115,13 @@ function Months({ first, shells, now }: { first: number; shells: number | null; 
 }
 
 /** Seventy-minute weeks have no month to sit in, so they are simply listed. */
-function ShellList({ first, shells }: { first: number; shells: number | null }) {
-  const now = today().shell
+function ShellList({ now }: { now: number }) {
   return (
     <div className="cal3-list">
       {Array.from({ length: MAX_SHELLS + 1 }, (_, i) => {
         const shell = now + i
-        const mine = shell >= first && shell < first + (shells ?? 1)
         return (
-          <p className="term-line cal3-row" key={shell} data-row={rowOf(shell, now, mine)}>
+          <p className="term-line cal3-row" key={shell} data-row={rowOf(shell, now)}>
             <span className="cal3-gutter">{gutter(shell, now)}</span> {clock(mondayOfShell(shell))} →{' '}
             {clock(new Date(mondayOfShell(shell + 1).getTime() - 60_000))}
           </p>
