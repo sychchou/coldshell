@@ -58,5 +58,5 @@ There is no prize pool and nothing to win from anyone else. You are not competin
 
 ## Status
 
-Rebuilt from [proof-of-grind](https://github.com/rosycho/proof-of-grind), which measured camera
+Rebuilt from [proof-of-grind](https://github.com/rozzcho/proof-of-grind), which measured camera
 time in a Discord room. Same escrow, a different kind of proof. Nothing here has shipped yet.

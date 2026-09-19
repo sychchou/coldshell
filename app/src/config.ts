@@ -4,7 +4,7 @@ import idl from './idl/coldshell.json'
 // Discord invite link — edit here
 export const DISCORD_INVITE_URL = 'https://discord.gg/QAJcGjP3Sh'
 // The code, open to anyone who wants to check what the program actually does.
-export const REPO_URL = 'https://github.com/rosycho/coldshell'
+export const REPO_URL = 'https://github.com/rozzcho/coldshell'
 // The full rules, readable without joining anything.
 export const RULES_URL = `${REPO_URL}/blob/main/RULES.md`
 
