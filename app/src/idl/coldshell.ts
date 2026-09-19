@@ -4,87 +4,24 @@
  * Note that this is only a type helper and is not the actual IDL. The original
  * IDL can be found at `target/idl/coldshell.json`.
  */
-export type ProofOfGrind = {
+export type Coldshell = {
   "address": "GLt8XkwvvViMEy5x9xXRMXMdi6Lq96bT2xknRbqottud",
   "metadata": {
-    "name": "proofOfGrind",
+    "name": "coldshell",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"
   },
+  "docs": [
+    "coldshell — stake on a run of weeks, record a minute a day, get each finished week back whole.",
+    "",
+    "The program never judges a recording. It holds the money, timestamps what the participant",
+    "says they did, and refunds week by week; the day's hash travels in the instruction data, so",
+    "the ledger carries a commitment nobody can backdate."
+  ],
   "instructions": [
     {
-      "name": "addWarning",
-      "docs": [
-        "Gives a participant a warning; 3 warnings and they are out."
-      ],
-      "discriminator": [
-        144,
-        1,
-        147,
-        218,
-        178,
-        131,
-        132,
-        135
-      ],
-      "accounts": [
-        {
-          "name": "oracle",
-          "writable": true,
-          "signer": true,
-          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
-        },
-        {
-          "name": "challenge",
-          "relations": [
-            "participant"
-          ]
-        },
-        {
-          "name": "participant"
-        },
-        {
-          "name": "warning",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  97,
-                  114,
-                  110,
-                  105,
-                  110,
-                  103
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "challenge"
-              },
-              {
-                "kind": "account",
-                "path": "participant.user",
-                "account": "participant"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "claim",
-      "docs": [
-        "A winner withdraws their share of the prize pool."
-      ],
       "discriminator": [
         62,
         198,
@@ -98,42 +35,23 @@ export type ProofOfGrind = {
       "accounts": [
         {
           "name": "user",
-          "writable": true,
           "signer": true,
           "relations": [
-            "participant"
+            "run"
           ]
         },
         {
-          "name": "challenge",
+          "name": "run",
           "writable": true,
-          "relations": [
-            "participant"
-          ]
-        },
-        {
-          "name": "participant",
-          "writable": true
-        },
-        {
-          "name": "warning",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
-                  97,
                   114,
-                  110,
-                  105,
-                  110,
-                  103
+                  117,
+                  110
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "challenge"
               },
               {
                 "kind": "account",
@@ -144,9 +62,7 @@ export type ProofOfGrind = {
         },
         {
           "name": "mint",
-          "relations": [
-            "challenge"
-          ]
+          "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         },
         {
           "name": "userTokenAccount",
@@ -159,7 +75,212 @@ export type ProofOfGrind = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "challenge"
+                "path": "run"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "shell",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "close",
+      "discriminator": [
+        98,
+        165,
+        201,
+        177,
+        108,
+        65,
+        206,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "rentDestination",
+          "writable": true,
+          "address": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
+        },
+        {
+          "name": "run",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  117,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "run.user",
+                "account": "run"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "name": "treasuryTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  232,
+                  61,
+                  147,
+                  154,
+                  82,
+                  40,
+                  30,
+                  131,
+                  58,
+                  243,
+                  106,
+                  74,
+                  61,
+                  130,
+                  165,
+                  105,
+                  39,
+                  105,
+                  53,
+                  30,
+                  226,
+                  213,
+                  76,
+                  104,
+                  253,
+                  175,
+                  80,
+                  110,
+                  57,
+                  231,
+                  248,
+                  128
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "run"
               },
               {
                 "kind": "account",
@@ -216,188 +337,43 @@ export type ProofOfGrind = {
       "args": []
     },
     {
-      "name": "recordProgress",
-      "docs": [
-        "Marks one day as passed for a participant."
-      ],
+      "name": "enter",
       "discriminator": [
-        116,
-        126,
-        203,
-        83,
-        23,
+        139,
+        49,
+        209,
         114,
-        161,
-        110
-      ],
-      "accounts": [
-        {
-          "name": "oracle",
-          "writable": true,
-          "signer": true,
-          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
-        },
-        {
-          "name": "challenge",
-          "relations": [
-            "participant"
-          ]
-        },
-        {
-          "name": "participant",
-          "writable": true
-        }
-      ],
-      "args": [
-        {
-          "name": "dayIndex",
-          "type": "u8"
-        }
-      ]
-    },
-    {
-      "name": "register",
-      "docs": [
-        "Pays `entry_fee × multiply` into the challenge vault and joins the pool."
-      ],
-      "discriminator": [
-        211,
-        124,
-        67,
-        15,
-        211,
-        194,
-        178,
-        240
+        88,
+        91,
+        77,
+        134
       ],
       "accounts": [
         {
           "name": "user",
+          "signer": true
+        },
+        {
+          "name": "payer",
           "writable": true,
           "signer": true
         },
         {
-          "name": "verifier",
-          "signer": true,
-          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
-        },
-        {
-          "name": "challenge",
-          "writable": true
-        },
-        {
-          "name": "participant",
+          "name": "run",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  97,
                   114,
-                  116,
-                  105,
-                  99,
-                  105,
-                  112,
-                  97,
-                  110,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "challenge"
-              },
-              {
-                "kind": "account",
-                "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "discordLink",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  105,
-                  115,
-                  99,
-                  111,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "challenge"
-              },
-              {
-                "kind": "arg",
-                "path": "discordId"
-              }
-            ]
-          }
-        },
-        {
-          "name": "walletLock",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  97,
-                  108,
-                  108,
-                  101,
-                  116,
-                  95,
-                  108,
-                  111,
-                  99,
-                  107
+                  117,
+                  110
                 ]
               },
               {
                 "kind": "account",
                 "path": "user"
-              }
-            ]
-          }
-        },
-        {
-          "name": "discordLock",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  100,
-                  105,
-                  115,
-                  99,
-                  111,
-                  114,
-                  100,
-                  95,
-                  108,
-                  111,
-                  99,
-                  107
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "discordId"
               }
             ]
           }
@@ -417,7 +393,7 @@ export type ProofOfGrind = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "challenge"
+                "path": "run"
               },
               {
                 "kind": "account",
@@ -481,266 +457,199 @@ export type ProofOfGrind = {
       ],
       "args": [
         {
-          "name": "track",
+          "name": "shells",
           "type": "u8"
         },
         {
-          "name": "challengeId",
+          "name": "stake",
           "type": "u64"
-        },
-        {
-          "name": "discordId",
-          "type": "u64"
-        },
-        {
-          "name": "multiply",
-          "type": "u8"
         }
       ]
     },
     {
-      "name": "rollover",
-      "docs": [
-        "Moves the prize pool of a challenge nobody won into a later one."
-      ],
+      "name": "recordDay",
       "discriminator": [
-        147,
-        98,
-        248,
-        23,
-        82,
-        182,
-        25,
-        134
+        21,
+        69,
+        138,
+        56,
+        95,
+        139,
+        121,
+        204
       ],
       "accounts": [
         {
-          "name": "from",
-          "writable": true
-        },
-        {
-          "name": "to",
-          "writable": true
-        },
-        {
-          "name": "mint",
+          "name": "user",
+          "signer": true,
           "relations": [
-            "from",
-            "to"
+            "run"
           ]
         },
         {
-          "name": "fromVault",
+          "name": "run",
           "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "from"
-              },
-              {
-                "kind": "account",
-                "path": "tokenProgram"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "toVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "to"
-              },
-              {
-                "kind": "account",
-                "path": "tokenProgram"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "tokenProgram"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "tally",
-      "docs": [
-        "Counts one participant after the challenge ends; the last one finalizes it."
-      ],
-      "discriminator": [
-        152,
-        106,
-        131,
-        171,
-        155,
-        62,
-        41,
-        7
-      ],
-      "accounts": [
-        {
-          "name": "participant",
-          "writable": true
-        },
-        {
-          "name": "challenge",
-          "writable": true,
-          "relations": [
-            "participant"
-          ]
-        },
-        {
-          "name": "warning",
-          "docs": [
-            "sure a caller cannot pass another account to hide warnings."
-          ],
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  119,
-                  97,
                   114,
-                  110,
-                  105,
-                  110,
-                  103
+                  117,
+                  110
                 ]
               },
               {
                 "kind": "account",
-                "path": "challenge"
-              },
-              {
-                "kind": "account",
-                "path": "participant.user",
-                "account": "participant"
+                "path": "user"
               }
             ]
           }
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "day",
+          "type": "u16"
+        },
+        {
+          "name": "hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "withdrawFees",
-      "docs": [
-        "Sends the platform fee and rounding dust to the treasury."
-      ],
+      "name": "sweep",
       "discriminator": [
-        198,
-        212,
-        171,
-        109,
-        144,
-        215,
-        174,
-        89
+        40,
+        23,
+        234,
+        175,
+        14,
+        61,
+        154,
+        177
       ],
       "accounts": [
         {
-          "name": "treasury",
+          "name": "run",
           "writable": true,
-          "signer": true,
-          "address": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
-        },
-        {
-          "name": "challenge",
-          "writable": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  117,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "run.user",
+                "account": "run"
+              }
+            ]
+          }
         },
         {
           "name": "mint",
-          "relations": [
-            "challenge"
-          ]
+          "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        },
+        {
+          "name": "treasuryTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  232,
+                  61,
+                  147,
+                  154,
+                  82,
+                  40,
+                  30,
+                  131,
+                  58,
+                  243,
+                  106,
+                  74,
+                  61,
+                  130,
+                  165,
+                  105,
+                  39,
+                  105,
+                  53,
+                  30,
+                  226,
+                  213,
+                  76,
+                  104,
+                  253,
+                  175,
+                  80,
+                  110,
+                  57,
+                  231,
+                  248,
+                  128
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
         },
         {
           "name": "vault",
@@ -749,7 +658,7 @@ export type ProofOfGrind = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "challenge"
+                "path": "run"
               },
               {
                 "kind": "account",
@@ -800,403 +709,228 @@ export type ProofOfGrind = {
           }
         },
         {
-          "name": "treasuryTokenAccount",
-          "writable": true
-        },
-        {
           "name": "tokenProgram"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "shell",
+          "type": "u8"
+        }
+      ]
     }
   ],
   "accounts": [
     {
-      "name": "challenge",
-      "discriminator": [
-        119,
-        250,
-        161,
-        121,
-        119,
-        81,
-        22,
-        208
-      ]
-    },
-    {
-      "name": "discordLink",
-      "discriminator": [
-        225,
-        81,
-        151,
-        211,
-        67,
-        4,
-        63,
-        67
-      ]
-    },
-    {
-      "name": "participant",
-      "discriminator": [
-        32,
-        142,
-        108,
-        79,
-        247,
-        179,
-        54,
-        6
-      ]
-    },
-    {
-      "name": "participationLock",
-      "discriminator": [
-        162,
-        14,
-        76,
-        6,
-        17,
-        112,
-        72,
-        239
-      ]
-    },
-    {
-      "name": "warning",
+      "name": "run",
       "discriminator": [
         199,
-        28,
-        213,
-        239,
-        55,
-        10,
-        78,
-        14
+        54,
+        155,
+        86,
+        235,
+        115,
+        246,
+        189
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "dayRecorded",
+      "discriminator": [
+        65,
+        62,
+        166,
+        104,
+        108,
+        221,
+        163,
+        182
       ]
     }
   ],
   "errors": [
     {
       "code": 6000,
-      "name": "invalidTrack",
-      "msg": "Unknown challenge track"
+      "name": "invalidShells",
+      "msg": "A run is between 1 and 10 shells."
     },
     {
       "code": 6001,
-      "name": "invalidMultiply",
-      "msg": "Multiply must be between 1 and 10"
+      "name": "invalidStake",
+      "msg": "A stake is between 10 and 200 USDC."
     },
     {
       "code": 6002,
-      "name": "registrationClosed",
-      "msg": "Registration for this challenge is not open"
+      "name": "invalidDay",
+      "msg": "That day is not part of this run."
     },
     {
       "code": 6003,
-      "name": "invalidVerifier",
-      "msg": "Registration must be co-signed by the verifier"
+      "name": "alreadyRecorded",
+      "msg": "That day is already recorded."
     },
     {
       "code": 6004,
-      "name": "invalidDay",
-      "msg": "That day is not part of this challenge"
+      "name": "dayNotStarted",
+      "msg": "That day has not started yet."
     },
     {
       "code": 6005,
-      "name": "dayNotStarted",
-      "msg": "That day has not started yet"
+      "name": "recordingClosed",
+      "msg": "That day can no longer be recorded."
     },
     {
       "code": 6006,
-      "name": "recordingClosed",
-      "msg": "Progress can no longer be recorded for this challenge"
+      "name": "invalidShell",
+      "msg": "That shell is not part of this run."
     },
     {
       "code": 6007,
-      "name": "challengeNotOver",
-      "msg": "Results are not open yet: the challenge or its record window is still running"
+      "name": "shellNotOver",
+      "msg": "That shell is still running."
     },
     {
       "code": 6008,
-      "name": "alreadyTallied",
-      "msg": "This participant was already counted"
+      "name": "weekIncomplete",
+      "msg": "A day of that shell is missing."
     },
     {
       "code": 6009,
-      "name": "notFinalized",
-      "msg": "Every participant must be counted first"
+      "name": "alreadyClaimed",
+      "msg": "That shell has already been claimed."
     },
     {
       "code": 6010,
-      "name": "notAWinner",
-      "msg": "Only participants who passed every day can claim"
+      "name": "alreadySwept",
+      "msg": "That shell has already been swept."
     },
     {
       "code": 6011,
-      "name": "alreadyClaimed",
-      "msg": "Already claimed"
+      "name": "claimWindowClosed",
+      "msg": "The four weeks to claim that shell have passed."
     },
     {
       "code": 6012,
       "name": "claimsPending",
-      "msg": "Everyone must claim before fees can be withdrawn"
+      "msg": "That shell was finished and can still be claimed."
     },
     {
       "code": 6013,
-      "name": "nothingToRollOver",
-      "msg": "This challenge has winners, so nothing rolls over"
+      "name": "shellsPending",
+      "msg": "Every shell has to be settled before the run can be closed."
     },
     {
       "code": 6014,
-      "name": "alreadyRolledOver",
-      "msg": "The prize pool already rolled over"
+      "name": "unauthorized",
+      "msg": "Only the participant or the treasury can do that."
     },
     {
       "code": 6015,
-      "name": "invalidRolloverTarget",
-      "msg": "The prize pool can only roll over into a later challenge on the same track"
-    },
-    {
-      "code": 6016,
-      "name": "overlappingChallenge",
-      "msg": "You are already in a challenge on another track at that time"
-    },
-    {
-      "code": 6017,
-      "name": "claimWindowClosed",
-      "msg": "The claim window for this challenge has closed"
-    },
-    {
-      "code": 6018,
-      "name": "warningsClosed",
-      "msg": "Warnings can no longer be given for this challenge"
-    },
-    {
-      "code": 6019,
       "name": "mathOverflow",
-      "msg": "Arithmetic overflow"
+      "msg": "Arithmetic overflowed."
     }
   ],
   "types": [
     {
-      "name": "challenge",
+      "name": "dayRecorded",
+      "docs": [
+        "A day of a run, marked by the participant themselves.",
+        "",
+        "Nothing here judges the recording — the program cannot see it and does not want to. What it",
+        "does is put the moment and the clip's hash in the ledger, where neither the participant nor",
+        "the platform can move them afterwards."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "track",
-            "type": "u8"
-          },
-          {
-            "name": "challengeId",
-            "type": "u64"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "entryFee",
-            "docs": [
-              "Per 1x, in mint base units (USDC: 6 decimals)."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "startTs",
-            "type": "i64"
-          },
-          {
-            "name": "endTs",
-            "type": "i64"
-          },
-          {
-            "name": "participantCount",
-            "type": "u32"
-          },
-          {
-            "name": "totalShares",
-            "docs": [
-              "Sum of every participant's multiply."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "totalDeposited",
-            "docs": [
-              "Everything paid in: the entry pool."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "carryOver",
-            "docs": [
-              "Prize pool rolled over from an earlier challenge nobody won."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "winnerShares",
-            "docs": [
-              "Sum of the winners' multiply; rewards are split by these shares."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "winnerCount",
-            "type": "u32"
-          },
-          {
-            "name": "talliedCount",
-            "type": "u32"
-          },
-          {
-            "name": "claimedCount",
-            "type": "u32"
-          },
-          {
-            "name": "finalized",
-            "docs": [
-              "Every participant has been counted, so the winners are known."
-            ],
-            "type": "bool"
-          },
-          {
-            "name": "rolledOver",
-            "type": "bool"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "discordLink",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "challenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "discordId",
-            "type": "u64"
-          },
           {
             "name": "user",
             "type": "pubkey"
           },
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "day",
+            "type": "u16"
+          },
+          {
+            "name": "hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "at",
+            "type": "i64"
           }
         ]
       }
     },
     {
-      "name": "participant",
+      "name": "run",
+      "docs": [
+        "One commitment: a stake, the weeks it covers, and which of their days have been recorded.",
+        "",
+        "A wallet has one of these at a time. Closing it frees the seed, so finishing a run and",
+        "starting another is the same thing as starting the first."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "challenge",
-            "type": "pubkey"
-          },
           {
             "name": "user",
             "type": "pubkey"
           },
           {
-            "name": "discordId",
-            "type": "u64"
+            "name": "firstShell",
+            "docs": [
+              "The shell this run began in. Shell 1 starts at `SHELL_EPOCH_TS`."
+            ],
+            "type": "u32"
           },
           {
-            "name": "multiply",
+            "name": "shells",
+            "docs": [
+              "How many consecutive shells were committed to, 1 to `MAX_SHELLS`."
+            ],
             "type": "u8"
           },
           {
-            "name": "amountPaid",
+            "name": "stake",
+            "docs": [
+              "Everything staked, in mint base units."
+            ],
             "type": "u64"
           },
           {
-            "name": "registeredAt",
-            "type": "i64"
+            "name": "days",
+            "docs": [
+              "One bit per day of the run; ten shells of seven days needs seventy."
+            ],
+            "type": "u128"
           },
           {
-            "name": "daysCompleted",
+            "name": "claimed",
             "docs": [
-              "One bit per day of the challenge; all bits set means they passed."
+              "One bit per shell, set when its share went back to the participant."
             ],
             "type": "u16"
           },
           {
-            "name": "tallied",
-            "type": "bool"
+            "name": "swept",
+            "docs": [
+              "One bit per shell, set when its share went to the treasury instead. Kept apart from",
+              "`claimed` because two bytes is a cheap price for being able to answer, forever, whether",
+              "a week came back or was forfeited."
+            ],
+            "type": "u16"
           },
           {
-            "name": "claimed",
-            "type": "bool"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "participationLock",
-      "docs": [
-        "Stops one person from being in challenges on two tracks at the same time.",
-        "Holds the period of their latest challenge; consecutive challenges on one track merge into it."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "track",
-            "type": "u8"
-          },
-          {
-            "name": "startTs",
+            "name": "startedAt",
             "type": "i64"
-          },
-          {
-            "name": "endTs",
-            "type": "i64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "warning",
-      "docs": [
-        "One Discord account can join a challenge only once.",
-        "Warnings a participant received in one challenge (after a jury upheld a report)."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "challenge",
-            "type": "pubkey"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "count",
-            "type": "u8"
           },
           {
             "name": "bump",
@@ -1208,164 +942,81 @@ export type ProofOfGrind = {
   ],
   "constants": [
     {
-      "name": "biweeklyDays",
-      "type": "u8",
-      "value": "14"
+      "name": "claimWindowSeconds",
+      "type": "i64",
+      "value": "2419200"
     },
     {
-      "name": "biweeklyDaySeconds",
+      "name": "daysPerShell",
+      "type": "u16",
+      "value": "7"
+    },
+    {
+      "name": "daySeconds",
       "type": "i64",
       "value": "86400"
     },
     {
-      "name": "biweeklyDuration",
-      "type": "i64",
-      "value": "1209600"
+      "name": "maxShells",
+      "docs": [
+        "Shells are 1 to 10 weeks, so ten bits of `claimed` and `swept` and seventy of `days`."
+      ],
+      "type": "u8",
+      "value": "10"
     },
     {
-      "name": "biweeklyEntryFee",
+      "name": "maxStake",
       "docs": [
-        "10 USDC (6 decimals) per 1x."
+        "$200. The ceiling protects people from themselves, not the platform from them."
+      ],
+      "type": "u64",
+      "value": "200000000"
+    },
+    {
+      "name": "minStake",
+      "docs": [
+        "$10, in USDC base units. Below this nothing is really at stake."
       ],
       "type": "u64",
       "value": "10000000"
     },
     {
-      "name": "biweeklyLaunchTs",
-      "docs": [
-        "Placeholder until the first Biweekly date is decided: Monday 2026-10-05 00:00 UTC.",
-        "Registration stays closed until then (the server only co-signs the Weekly track)."
-      ],
+      "name": "recordEarlySeconds",
       "type": "i64",
-      "value": "1791158400"
+      "value": "50400"
     },
     {
-      "name": "challengeSeed",
+      "name": "recordLateSeconds",
+      "type": "i64",
+      "value": "172800"
+    },
+    {
+      "name": "runSeed",
+      "docs": [
+        "One run per wallet at a time; closing it frees the seed for the next one."
+      ],
       "type": "bytes",
-      "value": "[99, 104, 97, 108, 108, 101, 110, 103, 101]"
+      "value": "[114, 117, 110]"
     },
     {
-      "name": "claimWindowSeconds",
+      "name": "shellEpochTs",
+      "type": "i64",
+      "value": "1789344000"
+    },
+    {
+      "name": "startGraceSeconds",
       "docs": [
-        "Winners have 4 weeks after a challenge ends to claim; what is left then goes to the treasury."
+        "How long after a shell begins you can still join it. Shells always start on a Monday, so a",
+        "run paid for midweek waits for the next one; Monday itself still counts, which is where the",
+        "\"at most six days of waiting\" comes from."
       ],
       "type": "i64",
-      "value": "2419200"
-    },
-    {
-      "name": "discordLockSeed",
-      "type": "bytes",
-      "value": "[100, 105, 115, 99, 111, 114, 100, 95, 108, 111, 99, 107]"
-    },
-    {
-      "name": "discordSeed",
-      "type": "bytes",
-      "value": "[100, 105, 115, 99, 111, 114, 100]"
-    },
-    {
-      "name": "feeBps",
-      "docs": [
-        "Platform + exchange fee, in basis points of the entry pool."
-      ],
-      "type": "u64",
-      "value": "500"
-    },
-    {
-      "name": "maxMultiply",
-      "type": "u8",
-      "value": "10"
-    },
-    {
-      "name": "maxWarnings",
-      "docs": [
-        "A participant with this many warnings in a challenge is out."
-      ],
-      "type": "u8",
-      "value": "3"
-    },
-    {
-      "name": "participantSeed",
-      "type": "bytes",
-      "value": "[112, 97, 114, 116, 105, 99, 105, 112, 97, 110, 116]"
-    },
-    {
-      "name": "payoutUnit",
-      "docs": [
-        "Rewards are rounded down to 0.01 USDC."
-      ],
-      "type": "u64",
-      "value": "10000"
-    },
-    {
-      "name": "recordWindowSeconds",
-      "docs": [
-        "Passed days can still be recorded for this long after a challenge ends (e.g. after a server",
-        "outage). Results are tallied only once this window closes."
-      ],
-      "type": "i64",
-      "value": "43200"
-    },
-    {
-      "name": "testDays",
-      "type": "u8",
-      "value": "5"
-    },
-    {
-      "name": "testDaySeconds",
-      "type": "i64",
-      "value": "120"
-    },
-    {
-      "name": "testDuration",
-      "type": "i64",
-      "value": "600"
-    },
-    {
-      "name": "testEntryFee",
-      "type": "u64",
-      "value": "1000000"
-    },
-    {
-      "name": "testLaunchTs",
-      "docs": [
-        "Test challenges run every 10 minutes, with five 2-minute \"days\"."
-      ],
-      "type": "i64",
-      "value": "0"
-    },
-    {
-      "name": "testRecordWindowSeconds",
-      "docs": [
-        "The test track settles quickly, so its window is two of its 2-minute days."
-      ],
-      "type": "i64",
-      "value": "240"
-    },
-    {
-      "name": "trackBiweekly",
-      "docs": [
-        "Opens every other week and runs for two weeks."
-      ],
-      "type": "u8",
-      "value": "1"
-    },
-    {
-      "name": "trackTest",
-      "docs": [
-        "Short track for testing the full cycle without waiting a week."
-      ],
-      "type": "u8",
-      "value": "2"
-    },
-    {
-      "name": "trackWeekly",
-      "type": "u8",
-      "value": "0"
+      "value": "86400"
     },
     {
       "name": "treasury",
       "docs": [
-        "Receives the platform fee and leftover rounding dust."
+        "Receives forfeited stakes, and the rent back when a run is closed."
       ],
       "type": "pubkey",
       "value": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
@@ -1377,53 +1028,6 @@ export type ProofOfGrind = {
       ],
       "type": "pubkey",
       "value": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-    },
-    {
-      "name": "verifier",
-      "docs": [
-        "Server key: co-signs `register` after verifying the Discord account, and records daily progress."
-      ],
-      "type": "pubkey",
-      "value": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
-    },
-    {
-      "name": "walletLockSeed",
-      "docs": [
-        "One participation lock per wallet and one per Discord account, shared by every track."
-      ],
-      "type": "bytes",
-      "value": "[119, 97, 108, 108, 101, 116, 95, 108, 111, 99, 107]"
-    },
-    {
-      "name": "warningSeed",
-      "type": "bytes",
-      "value": "[119, 97, 114, 110, 105, 110, 103]"
-    },
-    {
-      "name": "weeklyDays",
-      "type": "u8",
-      "value": "7"
-    },
-    {
-      "name": "weeklyDaySeconds",
-      "type": "i64",
-      "value": "86400"
-    },
-    {
-      "name": "weeklyEntryFee",
-      "docs": [
-        "7 USDC (6 decimals) per 1x."
-      ],
-      "type": "u64",
-      "value": "7000000"
-    },
-    {
-      "name": "weeklyLaunchTs",
-      "docs": [
-        "Weekly Challenge #0 starts Monday 2026-09-21 00:00 UTC; #n starts n weeks later."
-      ],
-      "type": "i64",
-      "value": "1789948800"
     },
     {
       "name": "weekSeconds",

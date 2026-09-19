@@ -1,36 +1,39 @@
 /**
  * A shell is the calendar week itself, numbered. Everyone inside one is inside the same week,
- * whether it is their first or their fifth.
+ * whether it is their first or their fifth. Shells begin on Mondays.
  *
  * Days are local. Nobody has to be anywhere at the same time as anybody else, so there is no
- * reason to make people do timezone arithmetic on their own day — and since nothing is verified,
- * the chain records when a day actually happened regardless of what it is labelled.
+ * reason to make people do timezone arithmetic on their own day. The chain knows only UTC, and
+ * the gap is exactly what its fourteen hours of early recording are for.
+ *
+ * Every number below comes out of the program's own constants, so a build with the short clock
+ * moves the screen and the chain together.
  */
 
-const DAY = 86_400_000
+import { DAYS_PER_SHELL, DAY_MS, SHELL_EPOCH_MS, SHORT_CLOCK } from '../config'
 
-/** The Monday shell #1 begins on, in local time. One constant to move. */
-export const SHELL_EPOCH = new Date(2026, 8, 14)
+const REAL_DAY = 86_400_000
 
-/**
- * VITE_DAY_MINUTES shortens a day so a whole week can be walked through in an hour. Days then
- * run from midnight rather than the calendar, because a ten-minute day has no calendar to follow.
- */
-const TEST_DAY_MINUTES = Number(import.meta.env.VITE_DAY_MINUTES ?? 0)
-export const TEST_MODE = TEST_DAY_MINUTES > 0 && TEST_DAY_MINUTES < 1440
-const TEST_DAY = TEST_DAY_MINUTES * 60_000
+/** The Monday shell #1 begins on, read off the program's epoch and rebuilt in local time. */
+export const SHELL_EPOCH = (() => {
+  const utc = new Date(SHELL_EPOCH_MS)
+  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate())
+})()
+
+/** A day lasts minutes rather than hours. Kept under the old name for the panes that read it. */
+export const TEST_MODE = SHORT_CLOCK
 
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
 /** Whole days between two local midnights. Rounding absorbs the hour a clock change adds or drops. */
-const daysBetween = (from: number, to: number) => Math.round((to - from) / DAY)
+const daysBetween = (from: number, to: number) => Math.round((to - from) / REAL_DAY)
 
 /** The local Monday that starts the week a moment falls in. */
 function mondayOf(ts: number) {
   const d = new Date(ts)
-  return midnight(d) - ((d.getDay() + 6) % 7) * DAY
+  return midnight(d) - ((d.getDay() + 6) % 7) * REAL_DAY
 }
 
 export type Today = {
@@ -38,7 +41,7 @@ export type Today = {
   shell: number
   /** 1-based day within this shell's week. */
   dayOfShell: number
-  /** YYYY-MM-DD, local. In test mode, the date plus the shortened clock. */
+  /** YYYY-MM-DD, local. */
   date: string
   weekday: string
 }
@@ -47,25 +50,39 @@ export function today(now = Date.now()): Today {
   const d = new Date(now)
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-  if (TEST_MODE) {
-    // Everything restarts at midnight, so a test never has to wait for a real week to turn over.
-    const elapsed = now - midnight(d)
-    const day = Math.floor(elapsed / TEST_DAY)
-    return { shell: Math.floor(day / 7) + 1, dayOfShell: (day % 7) + 1, date, weekday: WEEKDAYS[day % 7] }
+  if (SHORT_CLOCK) {
+    // A ten-minute day has no calendar to follow, so it counts straight from the epoch — which
+    // is also how the program counts, and a test is no use if the two disagree.
+    const day = Math.floor((now - SHELL_EPOCH_MS) / DAY_MS)
+    const dayOfShell = ((day % DAYS_PER_SHELL) + DAYS_PER_SHELL) % DAYS_PER_SHELL
+    return {
+      shell: Math.floor(day / DAYS_PER_SHELL) + 1,
+      dayOfShell: dayOfShell + 1,
+      date,
+      weekday: WEEKDAYS[dayOfShell],
+    }
   }
 
   const monday = mondayOf(now)
-  const shell = Math.floor(daysBetween(midnight(SHELL_EPOCH), monday) / 7) + 1
+  const shell = Math.floor(daysBetween(midnight(SHELL_EPOCH), monday) / DAYS_PER_SHELL) + 1
   const dayOfShell = daysBetween(monday, midnight(d)) + 1
   return { shell, dayOfShell, date, weekday: WEEKDAYS[dayOfShell - 1] }
 }
 
 /** How long until the day rolls over, so a test can see the next one coming. */
 export function untilNextDay(now = Date.now()) {
-  const d = new Date(now)
-  if (!TEST_MODE) return midnight(d) + DAY - now
-  const elapsed = now - midnight(d)
-  return TEST_DAY - (elapsed % TEST_DAY)
+  if (SHORT_CLOCK) return DAY_MS - ((now - SHELL_EPOCH_MS) % DAY_MS)
+  return midnight(new Date(now)) + REAL_DAY - now
+}
+
+/**
+ * The shell a run paid for now would begin in. Shells start on Mondays: pay on the Monday and
+ * the week that just started is yours, pay later and the run begins on the next one. This is the
+ * same rule the program applies, and it is the program's answer that counts.
+ */
+export function startingShell(now = Date.now()) {
+  const { shell, dayOfShell } = today(now)
+  return dayOfShell === 1 ? shell : shell + 1
 }
 
 /**
@@ -74,6 +91,9 @@ export function untilNextDay(now = Date.now()) {
  */
 export function progress(now = Date.now(), run?: { firstShell: number; shells: number }) {
   const { shell, dayOfShell } = today(now)
-  if (!run) return { day: dayOfShell, days: 7 }
-  return { day: (shell - run.firstShell) * 7 + dayOfShell, days: run.shells * 7 }
+  if (!run) return { day: dayOfShell, days: DAYS_PER_SHELL }
+  return {
+    day: (shell - run.firstShell) * DAYS_PER_SHELL + dayOfShell,
+    days: run.shells * DAYS_PER_SHELL,
+  }
 }

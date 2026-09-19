@@ -5,8 +5,6 @@ import idl from './idl/coldshell.json'
 export const DISCORD_INVITE_URL = 'https://discord.gg/QAJcGjP3Sh'
 // The code, open to anyone who wants to check what the program actually does.
 export const REPO_URL = 'https://github.com/rozzcho/coldshell'
-// The full rules, readable without joining anything.
-export const RULES_URL = `${REPO_URL}/blob/main/RULES.md`
 
 // Defaults target the local validator (scripts/local-validator.sh); deployments set VITE_*.
 export const RPC_ENDPOINT = import.meta.env.VITE_RPC_URL ?? 'http://127.0.0.1:8899'
@@ -19,76 +17,40 @@ function idlConstant(name: string): string {
   return String(constant.value)
 }
 
+const seconds = (name: string) => Number(idlConstant(name)) * 1000
+
 export const USDC_MINT = new PublicKey(idlConstant('USDC_MINT'))
 export const USDC_DECIMALS = 6
 
-/** A participant with this many warnings in a challenge is out. */
-export const MAX_WARNINGS = Number(idlConstant('MAX_WARNINGS'))
+/** Where forfeited stakes and returned rent go. */
+export const TREASURY = new PublicKey(idlConstant('TREASURY'))
 
-/** Winners must claim within this long after a challenge ends. */
-export const CLAIM_WINDOW_MS = Number(idlConstant('CLAIM_WINDOW_SECONDS')) * 1000
+// Every duration comes out of the program, so the screen and the chain cannot disagree about
+// how long a day is — including when the program was built with the short clock.
+export const SHELL_EPOCH_MS = seconds('SHELL_EPOCH_TS')
+export const DAY_MS = seconds('DAY_SECONDS')
+export const WEEK_MS = seconds('WEEK_SECONDS')
+export const RECORD_EARLY_MS = seconds('RECORD_EARLY_SECONDS')
+export const RECORD_LATE_MS = seconds('RECORD_LATE_SECONDS')
+export const CLAIM_WINDOW_MS = seconds('CLAIM_WINDOW_SECONDS')
+export const START_GRACE_MS = seconds('START_GRACE_SECONDS')
 
-// Challenge terms come from the program so the UI always matches what gets charged.
-const TRACKS = {
-  [Number(idlConstant('TRACK_WEEKLY'))]: {
-    name: 'Weekly Challenge',
-    track: Number(idlConstant('TRACK_WEEKLY')),
-    launchMs: Number(idlConstant('WEEKLY_LAUNCH_TS')) * 1000,
-    durationMs: Number(idlConstant('WEEK_SECONDS')) * 1000,
-    dayMs: Number(idlConstant('WEEKLY_DAY_SECONDS')) * 1000,
-    days: Number(idlConstant('WEEKLY_DAYS')),
-    entryFeeUsdc: Number(idlConstant('WEEKLY_ENTRY_FEE')) / 10 ** USDC_DECIMALS,
-  },
-  [Number(idlConstant('TRACK_BIWEEKLY'))]: {
-    name: 'Biweekly Challenge',
-    track: Number(idlConstant('TRACK_BIWEEKLY')),
-    launchMs: Number(idlConstant('BIWEEKLY_LAUNCH_TS')) * 1000,
-    durationMs: Number(idlConstant('BIWEEKLY_DURATION')) * 1000,
-    dayMs: Number(idlConstant('BIWEEKLY_DAY_SECONDS')) * 1000,
-    days: Number(idlConstant('BIWEEKLY_DAYS')),
-    entryFeeUsdc: Number(idlConstant('BIWEEKLY_ENTRY_FEE')) / 10 ** USDC_DECIMALS,
-  },
-  [Number(idlConstant('TRACK_TEST'))]: {
-    name: 'Test Challenge',
-    track: Number(idlConstant('TRACK_TEST')),
-    launchMs: Number(idlConstant('TEST_LAUNCH_TS')) * 1000,
-    durationMs: Number(idlConstant('TEST_DURATION')) * 1000,
-    dayMs: Number(idlConstant('TEST_DAY_SECONDS')) * 1000,
-    days: Number(idlConstant('TEST_DAYS')),
-    entryFeeUsdc: Number(idlConstant('TEST_ENTRY_FEE')) / 10 ** USDC_DECIMALS,
-  },
-} as const
+export const DAYS_PER_SHELL = Number(idlConstant('DAYS_PER_SHELL'))
+export const MAX_SHELLS = Number(idlConstant('MAX_SHELLS'))
+export const MIN_STAKE_USDC = Number(idlConstant('MIN_STAKE')) / 10 ** USDC_DECIMALS
+export const MAX_STAKE_USDC = Number(idlConstant('MAX_STAKE')) / 10 ** USDC_DECIMALS
 
-/** Which track this site runs; VITE_CHALLENGE_TRACK=2 switches to the short test track. */
-const track = Number(import.meta.env.VITE_CHALLENGE_TRACK ?? idlConstant('TRACK_WEEKLY'))
-const selected = TRACKS[track as keyof typeof TRACKS]
-if (!selected) throw new Error(`VITE_CHALLENGE_TRACK ${track} is not a track the program knows`)
+/** A day is ten minutes rather than a day, so a whole run can be walked through in an hour. */
+export const SHORT_CLOCK = DAY_MS !== 86_400_000
 
-export const CHALLENGE = { ...selected, maxMultiply: Number(idlConstant('MAX_MULTIPLY')) }
-
-export type TrackConfig = (typeof TRACKS)[number]
-
-/** Terms of any track, e.g. for a challenge the user joined on another track. */
-export function trackConfig(track: number): TrackConfig {
-  const config = TRACKS[track]
-  if (!config) throw new Error(`Track ${track} is not a track the program knows`)
-  return config
-}
-
-/** The Biweekly track, shown on the Next Challenge card. */
-export const BIWEEKLY = trackConfig(Number(idlConstant('TRACK_BIWEEKLY')))
-/**
- * Biweekly registration opens with VITE_BIWEEKLY_OPEN=true, once its first start date is set and the
- * server runs the track (CHALLENGE_TRACKS includes 1).
- */
-export const BIWEEKLY_OPEN = import.meta.env.VITE_BIWEEKLY_OPEN === 'true'
-
-export function explorerTxUrl(signature: string) {
+export function explorerUrl(kind: 'tx' | 'address', id: string) {
   const cluster =
     NETWORK === 'mainnet'
       ? ''
       : NETWORK === 'devnet'
         ? '?cluster=devnet'
         : `?cluster=custom&customUrl=${encodeURIComponent(RPC_ENDPOINT)}`
-  return `https://explorer.solana.com/tx/${signature}${cluster}`
+  return `https://explorer.solana.com/${kind}/${id}${cluster}`
 }
+
+export const explorerTxUrl = (signature: string) => explorerUrl('tx', signature)

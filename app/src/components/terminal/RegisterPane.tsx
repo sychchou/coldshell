@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { today } from '../../lib/shell'
+import { DAYS_PER_SHELL, MAX_SHELLS, MAX_STAKE_USDC, MIN_STAKE_USDC } from '../../config'
+import { startingShell } from '../../lib/shell'
 import { useCommands, useScrollOutput } from './chips'
 
+// The bounds come out of the program, so the screen cannot promise terms it would then refuse.
 const MIN_SHELLS = 1
-const MAX_SHELLS = 10
-const MIN_STAKE = 10
-const MAX_STAKE = 200
+const MIN_STAKE = MIN_STAKE_USDC
+const MAX_STAKE = MAX_STAKE_USDC
 
 type Field = 'shells' | 'stake'
 
@@ -66,7 +67,8 @@ function Prompt({
 /** Where a stake is placed and a run of shells begins. */
 export function RegisterPane({ active }: { active: boolean }) {
   const { publicKey } = useWallet()
-  const now = today()
+  // Shells start on Mondays, so a run paid for midweek begins on the next one.
+  const first = startingShell()
   const [shells, setShells] = useState<Entry | null>(null)
   const [stake, setStake] = useState<Entry | null>(null)
   const [order, setOrder] = useState<Field[]>([])
@@ -154,7 +156,10 @@ export function RegisterPane({ active }: { active: boolean }) {
         {problem && <p className="term-line term-bad">{problem}</p>}
         {!entry.editing && !problem && field === 'shells' && shellsDone !== null && (
           <p className="term-line">
-            shell {now.shell} – shell {now.shell + shellsDone - 1} · {shellsDone * 7} days
+            {shellsDone === 1
+              ? `shell ${first}`
+              : `shell ${first} – shell ${first + shellsDone - 1}`}{' '}
+            · {shellsDone * DAYS_PER_SHELL} days
           </p>
         )}
         {!entry.editing && !problem && field === 'stake' && stakeDone !== null && (

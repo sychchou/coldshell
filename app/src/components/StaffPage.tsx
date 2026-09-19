@@ -1,359 +1,426 @@
-import { useCallback, useEffect, useState } from 'react'
-import { DISCORD_LOGIN_URL, getStaffOverview, staffCreditDay, staffSendSol, type StaffChallenge, type StaffOverview, type StaffParticipant } from '../lib/api'
-import { formatDateTime, useTimeZoneMode } from '../lib/timeZone'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
+import { PublicKey, Transaction } from '@solana/web3.js'
+import {
+  DAYS_PER_SHELL,
+  DAY_MS,
+  MAX_SHELLS,
+  MAX_STAKE_USDC,
+  MIN_STAKE_USDC,
+  NETWORK_LABEL,
+  RPC_ENDPOINT,
+  RECORD_EARLY_MS,
+  RECORD_LATE_MS,
+  CLAIM_WINDOW_MS,
+  SHORT_CLOCK,
+  TREASURY,
+  USDC_MINT,
+  explorerUrl,
+} from '../config'
+import { PROGRAM_ID, usdcAta, vaultAta } from '../lib/program'
+import {
+  claimDeadline,
+  closable,
+  closeIx,
+  fetchRun,
+  fetchRuns,
+  currentShell,
+  shellComplete,
+  shellDays,
+  shellEnd,
+  shellSettles,
+  shellStart,
+  shellState,
+  share,
+  sweepIx,
+  sweepable,
+  type Run,
+  type ShellState,
+} from '../lib/runs'
+import { startingShell, today, untilNextDay } from '../lib/shell'
 
-const hours = (seconds: number) => `${(seconds / 3600).toFixed(1)}h`
-const shorten = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`
+type Kind = 'cmd' | 'out' | 'dim' | 'ok' | 'bad'
+type Line = { id: number; kind: Kind; text: string; href?: string }
 
-type Action = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done'; text: string } | { kind: 'error'; text: string }
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+const HEADS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
-/** What a challenge is doing right now, in words. */
-function phase(challenge: StaffChallenge, now: number) {
-  if (now < challenge.startMs) return 'registration open'
-  if (now < challenge.endMs) return 'running'
-  if (challenge.finalized) return challenge.claimed >= challenge.winnerCount ? 'settled' : 'claims open'
-  return now < challenge.resultsOpenMs ? 'recording window' : 'waiting for tally'
+const pad = (n: number) => String(n).padStart(2, '0')
+const usd = (base: bigint | number) => `$${(Number(base) / 1e6).toFixed(2)}`
+const short = (key: PublicKey | string) => {
+  const s = key.toString()
+  return `${s.slice(0, 4)}…${s.slice(-4)}`
 }
 
 /**
- * The page for running the challenges: who joined, how they are doing, what the server is up to,
- * and the two actions that used to need a terminal (sending SOL, crediting a day).
+ * Everything the program decides, it decides in UTC. The site shows people their own local day
+ * on purpose, but in here that would only make two clocks to confuse — so every moment below is
+ * the chain's.
+ */
+function when(ms: number) {
+  const d = new Date(ms)
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${WEEKDAYS[d.getUTCDay()]} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+}
+
+function stamp(ms: number) {
+  const d = new Date(ms)
+  return `${WEEKDAYS[d.getUTCDay()]} ${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+}
+
+function local(ms: number) {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${WEEKDAYS[d.getDay()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function span(ms: number) {
+  if (ms <= 0) return 'now'
+  const units: [number, string][] = [[86_400_000, 'd'], [3_600_000, 'h'], [60_000, 'm'], [1000, 's']]
+  const parts: string[] = []
+  let left = ms
+  for (const [size, label] of units) {
+    const n = Math.floor(left / size)
+    left -= n * size
+    if (n) parts.push(`${n}${label}`)
+  }
+  return parts.slice(0, 2).join(' ') || '0s'
+}
+
+/** A fixed-width key so the output reads like a table without being one. */
+const row = (key: string, value: string) => `${key.padEnd(17)}${value}`
+
+const GLYPH: Record<ShellState, string> = {
+  open: '·',
+  claimable: '$',
+  returned: '+',
+  forfeit: '!',
+  expired: '!',
+  swept: '-',
+}
+
+const HELP = [
+  row('clock', 'where the week is right now'),
+  row('rules', 'every number the program enforces'),
+  row('runs', 'every run on chain'),
+  row('run <wallet>', 'one run, day by day'),
+  row('sweep <w> <#>', 'collect a forfeited or expired shell'),
+  row('close <wallet>', 'give the rent back and free the wallet'),
+  row('treasury', 'what the platform is holding'),
+  row('clear', 'empty the screen'),
+]
+
+/**
+ * The back room. Everything the program knows, read out loud — and the two things the platform
+ * can do on its own, which are collecting a week nobody finished and putting a run away.
+ *
+ * It is a console rather than a dashboard because the questions are not fixed: half of running
+ * this is looking at one wallet and asking why the chain thinks what it thinks.
  */
 export function StaffPage() {
-  const [overview, setOverview] = useState<StaffOverview | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [zone, toggleZone] = useTimeZoneMode()
+  const { connection } = useConnection()
+  const { publicKey, sendTransaction } = useWallet()
+  const [lines, setLines] = useState<Line[]>([])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState<string[]>([])
+  const [cursor, setCursor] = useState(-1)
+  const nextId = useRef(0)
+  const outRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(async () => {
-    try {
-      setOverview(await getStaffOverview())
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }, [])
+  const print = useMemo(
+    () => (kind: Kind, text: string, href?: string) =>
+      setLines((all) => [...all, { id: nextId.current++, kind, text, href }]),
+    [],
+  )
+
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (greeted.current) return // strict mode runs effects twice; the banner is not a retry
+    greeted.current = true
+    print('dim', `coldshell staff · ${NETWORK_LABEL.toLowerCase()} · ${short(PROGRAM_ID)}`)
+    print('out', 'type help')
+    print('dim', 'every time below is utc, because that is the only clock the program keeps')
+    if (SHORT_CLOCK) print('bad', `short clock: a day is ${span(DAY_MS)} and a week ${span(DAY_MS * DAYS_PER_SHELL)}`)
+  }, [print])
 
   useEffect(() => {
-    load()
-    const timer = setInterval(load, 20_000)
-    return () => clearInterval(timer)
-  }, [load])
+    outRef.current?.scrollTo({ top: outRef.current.scrollHeight })
+  }, [lines])
 
-  if (error) {
-    return (
-      <main className="page staff">
-        <h1 className="staff-title">Staff</h1>
-        <p className="pay-message pay-error">{error}</p>
-        <p>
-          <a className="pay-link" href={DISCORD_LOGIN_URL}>
-            Sign in with Discord
-          </a>{' '}
-          with a staff account, then reload.
-        </p>
-      </main>
-    )
+  const wallet = (word: string | undefined): PublicKey => {
+    if (!word || word === '.' || word === 'me') {
+      if (!publicKey) throw new Error('no wallet connected, so there is no "." to stand in for one')
+      return publicKey
+    }
+    try {
+      return new PublicKey(word)
+    } catch {
+      throw new Error(`${word} is not an address`)
+    }
   }
 
-  if (!overview) {
-    return (
-      <main className="page staff">
-        <h1 className="staff-title">Staff</h1>
-        <p className="card-empty">Loading…</p>
-      </main>
-    )
+  async function send(what: string, ix: ReturnType<typeof sweepIx>) {
+    if (!publicKey) throw new Error('connect a wallet first — somebody has to pay the fee')
+    const tx = new Transaction().add(ix)
+    const signature = await sendTransaction(tx, connection)
+    print('dim', `${what} sent, waiting`)
+    const latest = await connection.getLatestBlockhash()
+    await connection.confirmTransaction({ signature, ...latest }, 'confirmed')
+    print('ok', `${what} confirmed`)
+    print('dim', signature, explorerUrl('tx', signature))
   }
 
-  const { server, now } = overview
+  function printRun(run: Run, now: number) {
+    const last = run.firstShell + run.shells - 1
+    print('out', row('run', run.address.toString()))
+    print('out', row('wallet', run.user.toString()))
+    print('out', row('vault', vaultAta(run.user).toString()))
+    print('out', row('stake', `${usd(run.stake)} over ${run.shells} shell${run.shells > 1 ? 's' : ''}`))
+    print('out', row('shells', run.shells === 1 ? `#${run.firstShell}` : `#${run.firstShell} – #${last}`))
+    print('out', row('entered', when(run.enteredAt)))
+    print('dim', '')
+
+    for (let offset = 0; offset < run.shells; offset++) {
+      const index = run.firstShell + offset
+      const state = shellState(run, offset, now)
+      const marks = shellDays(run, offset)
+      const done = marks.filter(Boolean).length
+      const settles = shellSettles(index)
+
+      print('out', `shell #${index}   ${stamp(shellStart(index))} → ${stamp(shellEnd(index) - 60_000)}`)
+      print('dim', `  ${HEADS.map((h) => h.padStart(3)).join(' ')}`)
+      print(
+        'out',
+        `  ${marks
+          .map((hit, day) => {
+            if (hit) return '#'
+            // A day still inside its window can still be saved; a closed one cannot.
+            const open = now < shellStart(index) + day * DAY_MS + RECORD_LATE_MS
+            return open ? '_' : '.'
+          })
+          .map((m) => m.padStart(3))
+          .join(' ')}   ${done}/${DAYS_PER_SHELL}`,
+      )
+
+      const money = usd(share(run, offset))
+      if (state === 'open') {
+        const detail = shellComplete(run, offset)
+          ? `all seven in · ${money} unlocks ${stamp(settles)}`
+          : `${DAYS_PER_SHELL - done} to go · settles ${stamp(settles)}`
+        print('out', `  open — ${detail}`)
+      } else if (state === 'claimable') {
+        print('ok', `  claimable — ${money} until ${stamp(claimDeadline(index))}`)
+      } else if (state === 'returned') {
+        print('ok', `  returned — ${money} went back`)
+      } else if (state === 'swept') {
+        print('dim', `  swept — ${money} went to the treasury`)
+      } else if (state === 'forfeit') {
+        print('bad', `  forfeit — a day missing · ${money} sweepable now`)
+      } else {
+        print('bad', `  expired — never collected · ${money} sweepable now`)
+      }
+      print('dim', '')
+    }
+
+    print('dim', closable(run, now) ? 'close is available' : 'a shell is still open, so close is not')
+  }
+
+  const COMMANDS: Record<string, (args: string[]) => Promise<void> | void> = {
+    help: () => {
+      for (const line of HELP) print('out', line)
+      print('dim', '. or me stands in for the connected wallet')
+    },
+
+    clear: () => setLines([]),
+
+    clock: () => {
+      const now = Date.now()
+      const zone = -new Date().getTimezoneOffset() / 60
+      const chain = currentShell(now)
+      const { shell, dayOfShell, weekday } = today(now)
+
+      print('out', row('now', `${when(now)} utc`))
+      print('dim', row('', `${local(now)} here (UTC${zone >= 0 ? '+' : ''}${zone})`))
+      print('out', row('shell', `#${chain} · day ${Math.floor((now - shellStart(chain)) / DAY_MS) + 1} of ${DAYS_PER_SHELL}`))
+      if (shell !== chain || `${weekday}` !== WEEKDAYS[new Date(now).getUTCDay()]) {
+        // The site counts the participant's own day, which can be ahead of or behind the chain's.
+        print('dim', row('', `the site would say shell #${shell}, day ${dayOfShell}, ${weekday}`))
+      }
+      print('out', row('next day in', span(untilNextDay(now))))
+      print('dim', '')
+      print('out', row('week ends', stamp(shellEnd(chain))))
+      print('out', row('and settles', `${stamp(shellSettles(chain))} — a day later, once sunday's window shuts`))
+      print('out', row('claim until', stamp(shellSettles(chain) + CLAIM_WINDOW_MS)))
+      print('dim', '')
+      const starting = startingShell(now)
+      print(
+        'out',
+        starting === shell
+          ? `a run paid for now starts today, in shell #${shell}`
+          : `a run paid for now starts shell #${starting}, ${stamp(shellStart(starting))}`,
+      )
+    },
+
+    rules: () => {
+      print('out', row('stake', `${usd(MIN_STAKE_USDC * 1e6)} – ${usd(MAX_STAKE_USDC * 1e6)}`))
+      print('out', row('shells', `1 – ${MAX_SHELLS}, ${DAYS_PER_SHELL} days each`))
+      print('out', row('a day opens', `${span(RECORD_EARLY_MS)} before it starts`))
+      print('out', row('and closes', `${span(RECORD_LATE_MS)} after it starts`))
+      print('out', row('a week settles', `${span(RECORD_LATE_MS - DAY_MS)} after the week ends`))
+      print('out', row('claim window', span(CLAIM_WINDOW_MS)))
+      print('out', row('a day lasts', span(DAY_MS)))
+      print('dim', '')
+      print('out', row('program', PROGRAM_ID.toString()))
+      print('out', row('treasury', TREASURY.toString()))
+      print('out', row('usdc', USDC_MINT.toString()))
+    },
+
+    treasury: async () => {
+      const ata = usdcAta(TREASURY)
+      const [sol, token] = await Promise.all([
+        connection.getBalance(TREASURY),
+        connection.getTokenAccountBalance(ata).catch(() => null),
+      ])
+      print('out', row('treasury', TREASURY.toString()))
+      print('out', row('sol', `${(sol / 1e9).toFixed(4)}`))
+      print('out', row('usdc account', ata.toString()))
+      if (token) print('out', row('usdc', usd(Number(token.value.amount))))
+      else print('bad', 'the usdc account does not exist yet — sweep and close will both fail')
+    },
+
+    runs: async () => {
+      const runs = await fetchRuns(connection)
+      if (!runs.length) return print('dim', 'nothing on chain yet')
+      const now = Date.now()
+      print('dim', `${'wallet'.padEnd(17)}${'shells'.padEnd(14)}${'stake'.padEnd(10)}${'days'.padEnd(8)}state`)
+      for (const run of runs) {
+        const last = run.firstShell + run.shells - 1
+        const range = run.shells === 1 ? `#${run.firstShell}` : `#${run.firstShell}–#${last}`
+        const done = [...Array(run.shells * DAYS_PER_SHELL)].filter((_, d) => (run.days >> BigInt(d)) & 1n).length
+        const glyphs = [...Array(run.shells)].map((_, o) => GLYPH[shellState(run, o, now)]).join('')
+        print(
+          'out',
+          `${short(run.user).padEnd(17)}${range.padEnd(14)}${usd(run.stake).padEnd(10)}${`${done}/${run.shells * DAYS_PER_SHELL}`.padEnd(8)}${glyphs}`,
+        )
+      }
+      print('dim', '')
+      print('dim', '· open   $ claimable   + returned   ! sweepable   - swept')
+    },
+
+    run: async (args) => {
+      const user = wallet(args[0])
+      const run = await fetchRun(connection, user)
+      if (!run) return print('dim', `${short(user)} has no run open`)
+      printRun(run, Date.now())
+    },
+
+    sweep: async (args) => {
+      const user = wallet(args[0])
+      const index = Number(args[1]?.replace('#', ''))
+      if (!Number.isInteger(index)) throw new Error('which shell? sweep <wallet> <#shell>')
+      const run = await fetchRun(connection, user)
+      if (!run) throw new Error(`${short(user)} has no run open`)
+      const offset = index - run.firstShell
+      if (offset < 0 || offset >= run.shells) {
+        throw new Error(`shell #${index} is not part of this run (#${run.firstShell} – #${run.firstShell + run.shells - 1})`)
+      }
+      const state = shellState(run, offset, Date.now())
+      if (!sweepable(state)) throw new Error(`shell #${index} is ${state}, and only a forfeited or expired shell can be swept`)
+      print('out', `sweeping ${usd(share(run, offset))} from shell #${index} of ${short(user)}`)
+      await send('sweep', sweepIx(user, offset))
+    },
+
+    close: async (args) => {
+      const user = wallet(args[0])
+      const run = await fetchRun(connection, user)
+      if (!run) throw new Error(`${short(user)} has no run open`)
+      if (!publicKey) throw new Error('connect a wallet first')
+      if (!publicKey.equals(user) && !publicKey.equals(TREASURY)) {
+        throw new Error('only the participant or the treasury can close a run')
+      }
+      if (!closable(run, Date.now())) throw new Error('a shell is still open — claim or sweep it first')
+      await send('close', closeIx(publicKey, user))
+    },
+  }
+
+  async function submit(raw: string) {
+    const text = raw.trim()
+    print('cmd', `$ ${text}`)
+    if (!text) return
+    setHistory((h) => [text, ...h.filter((x) => x !== text)].slice(0, 50))
+    const [name, ...args] = text.split(/\s+/)
+    const command = COMMANDS[name]
+    if (!command) return print('bad', `${name}? try help`)
+    setBusy(true)
+    try {
+      await command(args)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // The browser's word for a dead RPC is "Failed to fetch", which says nothing useful.
+      print('bad', message === 'Failed to fetch' ? `${RPC_ENDPOINT} did not answer` : message)
+    } finally {
+      setBusy(false)
+      inputRef.current?.focus()
+    }
+  }
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter' && !busy) {
+      const text = input
+      setInput('')
+      setCursor(-1)
+      void submit(text)
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      if (!history.length) return
+      event.preventDefault()
+      const next = event.key === 'ArrowUp' ? Math.min(cursor + 1, history.length - 1) : Math.max(cursor - 1, -1)
+      setCursor(next)
+      setInput(next === -1 ? '' : history[next])
+    } else if (event.key === 'l' && event.ctrlKey) {
+      event.preventDefault()
+      setLines([])
+    }
+  }
 
   return (
-    <main className="page staff">
-      <div className="card-head">
-        <a className="card-back" href="/">
-          ← Site
-        </a>
-        <h1 className="staff-title">Staff</h1>
-        <button type="button" className="zone-toggle card-head-end" onClick={toggleZone}>
-          {zone}
-        </button>
-      </div>
-
-      <section className="staff-block">
-        <h2 className="staff-heading">Server</h2>
-        <dl className="card-rows">
-          <dt>bot</dt>
-          <dd>
-            {server.bot.healthy ? 'ok' : 'check it'} · {server.bot.ready ? 'connected' : 'disconnected'} · saved{' '}
-            {server.bot.lastFlushSecondsAgo ?? '–'}s ago
-          </dd>
-          <dt>oracle</dt>
-          <dd>
-            {shorten(server.oracle)} · {server.oracleSol?.toFixed(3) ?? '–'} SOL
-          </dd>
-          <dt>faucet</dt>
-          <dd>
-            {server.faucet ? shorten(server.faucet) : 'none'} · {server.faucetSol?.toFixed(3) ?? '–'} SOL
-          </dd>
-          <dt>outages</dt>
-          <dd>
-            {server.outages.length === 0
-              ? 'none'
-              : server.outages
-                  .slice(-3)
-                  .map((outage) => `${formatDateTime(outage.startMs, zone)} (${Math.round((outage.endMs - outage.startMs) / 60_000)}m)`)
-                  .join(', ')}
-          </dd>
-        </dl>
-        <SendSol maxSol={server.faucetMaxSol} onDone={load} />
-      </section>
-
-      {overview.challenges.map((challenge) => (
-        <ChallengeBlock
-          key={`${challenge.track}:${challenge.challengeId}`}
-          challenge={challenge}
-          now={now}
-          goalSeconds={overview.goalSeconds}
-          zone={zone}
-          onDone={load}
-        />
-      ))}
-
-      <section className="staff-block">
-        <h2 className="staff-heading">Reports</h2>
-        {overview.reports.length === 0 ? (
-          <p className="card-empty">No reports yet.</p>
-        ) : (
-          <div className="staff-scroll">
-            <table className="staff-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>opened</th>
-                  <th>target</th>
-                  <th>reason</th>
-                  <th>jury</th>
-                  <th>status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.reports.map((report) => (
-                  <tr key={report.id}>
-                    <td>{report.id}</td>
-                    <td>{formatDateTime(report.createdAt, zone)}</td>
-                    <td>{report.names[report.targetId] ?? report.targetId}</td>
-                    <td>{report.reason ?? '–'}</td>
-                    <td>
-                      {report.jurors.filter((j) => j.vote === 'uphold').length} uphold ·{' '}
-                      {report.jurors.filter((j) => j.vote === 'dismiss').length} dismiss ·{' '}
-                      {report.jurors.filter((j) => j.vote === null && !j.expired).length} waiting
-                    </td>
-                    <td>
-                      {report.status}
-                      {report.status === 'upheld' && !report.warned ? ' (warning pending)' : ''}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </main>
-  )
-}
-
-function ChallengeBlock({
-  challenge,
-  now,
-  goalSeconds,
-  zone,
-  onDone,
-}: {
-  challenge: StaffChallenge
-  now: number
-  goalSeconds: number
-  zone: 'local' | 'utc'
-  onDone: () => void
-}) {
-  return (
-    <section className="staff-block">
-      <h2 className="staff-heading">
-        {challenge.name} #{challenge.challengeId} · {phase(challenge, now)}
-      </h2>
-      <dl className="card-rows">
-        <dt>dates</dt>
-        <dd>
-          {formatDateTime(challenge.startMs, zone)} ~ {formatDateTime(challenge.endMs - 60_000, zone)}
-        </dd>
-        <dt>results open</dt>
-        <dd>{formatDateTime(challenge.resultsOpenMs, zone)}</dd>
-        <dt>entry pool</dt>
-        <dd>
-          {challenge.entryPoolUsdc.toFixed(2)} USDC
-          {challenge.carryOverUsdc > 0 ? ` (+${challenge.carryOverUsdc.toFixed(2)} rolled over)` : ''}
-        </dd>
-        <dt>settlement</dt>
-        <dd>
-          {challenge.finalized ? 'finalized' : `tallied ${challenge.tallied}/${challenge.participants.length}`} ·{' '}
-          {challenge.winnerCount} winners · {challenge.claimed} claimed
-          {challenge.rolledOver ? ' · rolled over' : ''}
-        </dd>
-      </dl>
-
-      {challenge.participants.length === 0 ? (
-        <p className="card-empty">Nobody registered yet.</p>
-      ) : (
-        <div className="staff-scroll">
-          <table className="staff-table">
-            <thead>
-              <tr>
-                <th>who</th>
-                <th>wallet</th>
-                <th>stake</th>
-                <th>days</th>
-                <th>today</th>
-                <th>state</th>
-                <th>credit a day</th>
-              </tr>
-            </thead>
-            <tbody>
-              {challenge.participants.map((participant) => (
-                <ParticipantRow
-                  key={participant.wallet}
-                  challenge={challenge}
-                  participant={participant}
-                  now={now}
-                  goalSeconds={goalSeconds}
-                  onDone={onDone}
-                />
-              ))}
-            </tbody>
-          </table>
+    <main className="staff">
+      <div className="console">
+        <div className="console-bar">
+          <span className="console-name">coldshell staff@{NETWORK_LABEL.toLowerCase()}: ~</span>
+          <span className="console-account">
+            <WalletMultiButton />
+          </span>
         </div>
-      )}
-    </section>
-  )
-}
-
-function ParticipantRow({
-  challenge,
-  participant,
-  now,
-  goalSeconds,
-  onDone,
-}: {
-  challenge: StaffChallenge
-  participant: StaffParticipant
-  now: number
-  goalSeconds: number
-  onDone: () => void
-}) {
-  const [action, setAction] = useState<Action>({ kind: 'idle' })
-  const dayMs = (challenge.endMs - challenge.startMs) / challenge.days
-  const currentDay = now >= challenge.startMs && now < challenge.endMs ? Math.floor((now - challenge.startMs) / dayMs) : null
-  const today = currentDay === null ? null : participant.days[currentDay]
-
-  const credit = async (dayIndex: number) => {
-    setAction({ kind: 'busy' })
-    try {
-      await staffCreditDay(challenge.track, challenge.challengeId, participant.discordId, dayIndex)
-      setAction({ kind: 'done', text: `day ${dayIndex + 1} credited` })
-      onDone()
-    } catch (err) {
-      setAction({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
-    }
-  }
-
-  return (
-    <tr>
-      <td>
-        {participant.name ?? participant.discordId}
-        {participant.counting ? ' · on camera' : ''}
-        {participant.warnings > 0 ? ` · ${participant.warnings} warning(s)` : ''}
-      </td>
-      <td>{shorten(participant.wallet)}</td>
-      <td>
-        {participant.multiply}x · {participant.paidUsdc} USDC
-      </td>
-      <td>
-        {participant.daysPassed}/{challenge.days} passed · {participant.recorded} on chain
-      </td>
-      <td>{today ? `${hours(today.seconds)} / ${hours(today.goalSeconds ?? goalSeconds)}` : '–'}</td>
-      <td>
-        {participant.tallied ? (participant.passedEveryDay ? 'winner' : 'missed') : 'not tallied'}
-        {participant.claimed ? ' · claimed' : ''}
-      </td>
-      <td>
-        <span className="staff-credit">
-          {participant.days.map((day) => (
-            <button
-              key={day.dayIndex}
-              type="button"
-              className="zone-toggle"
-              title={`Mark day ${day.dayIndex + 1} as passed (${hours(day.seconds)} counted)`}
-              disabled={day.recorded || action.kind === 'busy'}
-              onClick={() => credit(day.dayIndex)}
-            >
-              {day.dayIndex + 1}
-            </button>
+        <div className="console-out" ref={outRef} onClick={() => inputRef.current?.focus()}>
+          {lines.map(({ id, kind, text, href }) => (
+            <div key={id} className="console-line" data-kind={kind}>
+              {href ? (
+                <a href={href} target="_blank" rel="noreferrer">
+                  {text}
+                </a>
+              ) : (
+                text || ' '
+              )}
+            </div>
           ))}
-        </span>
-        {action.kind === 'done' && <span className="staff-note"> {action.text}</span>}
-        {action.kind === 'error' && <span className="staff-note pay-error"> {action.text}</span>}
-      </td>
-    </tr>
-  )
-}
-
-function SendSol({ maxSol, onDone }: { maxSol: number; onDone: () => void }) {
-  const [wallet, setWallet] = useState('')
-  const [sol, setSol] = useState('0.05')
-  const [action, setAction] = useState<Action>({ kind: 'idle' })
-
-  const send = async () => {
-    setAction({ kind: 'busy' })
-    try {
-      const result = await staffSendSol(wallet.trim(), Number(sol))
-      setAction({ kind: 'done', text: `Sent ${result.sol} SOL. Their balance is now ${result.balance.toFixed(3)} SOL.` })
-      setWallet('')
-      onDone()
-    } catch (err) {
-      setAction({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
-    }
-  }
-
-  return (
-    <div className="staff-form">
-      <label>
-        <span>Send SOL to</span>
-        <input
-          id="staff-sol-wallet"
-          value={wallet}
-          onChange={(e) => setWallet(e.target.value)}
-          placeholder="wallet address"
-          spellCheck={false}
-        />
-      </label>
-      <label>
-        <span>SOL</span>
-        <input
-          id="staff-sol-amount"
-          value={sol}
-          onChange={(e) => setSol(e.target.value)}
-          inputMode="decimal"
-          size={5}
-        />
-      </label>
-      <button
-        type="button"
-        className="pay-button staff-send"
-        onClick={send}
-        disabled={action.kind === 'busy' || wallet.trim().length < 32 || !(Number(sol) > 0 && Number(sol) <= maxSol)}
-      >
-        {action.kind === 'busy' ? 'Sending…' : 'Send'}
-      </button>
-      <p className={action.kind === 'error' ? 'staff-note pay-error' : 'staff-note'}>
-        {action.kind === 'done' || action.kind === 'error' ? action.text : `Up to ${maxSol} SOL at a time.`}
-      </p>
-    </div>
+          <div className="console-line console-prompt">
+            <span aria-hidden>$</span>
+            <input
+              ref={inputRef}
+              className="console-input"
+              value={input}
+              spellCheck={false}
+              autoComplete="off"
+              autoFocus
+              aria-label="command"
+              disabled={busy}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+            />
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }

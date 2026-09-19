@@ -850,95 +850,107 @@ button.nav-link:focus-visible {
 
 /* Staff page: a wide, plain read-out for running the challenges. */
 .staff {
-  max-width: 1100px;
-  margin: 0 auto;
-  font-size: clamp(13px, 1.1vw, 16px);
-}
-
-.staff-title {
-  margin: 0;
-  font-size: 1.4em;
-  font-weight: 400;
-}
-
-.staff-block {
-  margin-top: 28px;
-  padding-top: 16px;
-  border-top: 1px dotted color-mix(in srgb, var(--cyan) 40%, transparent);
-}
-
-.staff-heading {
-  margin: 0 0 10px;
-  font-size: 1.1em;
-  font-weight: 400;
-}
-
-.staff .card-rows {
-  padding-left: 0;
-  margin-bottom: 14px;
-  max-width: 640px;
-}
-
-.staff-scroll {
-  overflow-x: auto;
-}
-
-.staff-table {
-  border-collapse: collapse;
-  width: 100%;
-  min-width: 720px;
-}
-
-.staff-table th,
-.staff-table td {
-  padding: 8px 12px 8px 0;
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px dotted color-mix(in srgb, var(--cyan) 25%, transparent);
-}
-
-.staff-table th {
-  opacity: 0.7;
-  font-weight: 400;
-}
-
-.staff-credit {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.staff-note {
-  opacity: 0.7;
-}
-
-.staff-form {
+  flex: 1 1 auto;
   display: flex;
-  flex-wrap: wrap;
+  min-height: 0;
+  padding: clamp(10px, 1.6vw, 20px);
+  font-size: clamp(12px, 0.95vw, 14px);
+}
+
+/* The back room is one window and nothing else, so it takes the whole screen. */
+.console {
+  --pad: 1.1em;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--term-edge);
+  border-radius: 6px;
+  background: var(--term-bg);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.console-bar {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.5em var(--pad);
+  border-bottom: 1px solid var(--term-edge);
 }
 
-.staff-form label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.console-name {
+  color: var(--muted-text);
 }
 
-.staff-form span {
-  opacity: 0.7;
+.console-account .wallet-adapter-button {
+  height: 2.2em;
+  font-size: 0.95em;
 }
 
-.staff-form input {
-  padding: 6px 8px;
-  border: 1px solid var(--cyan);
+/* Output and input share one scrolling surface, the way a real terminal does. */
+.console-out {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9em var(--pad) 1.4em;
+  background: var(--out-bg);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  cursor: text;
+}
+
+.console-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.console-line[data-kind='cmd'] {
+  margin-top: 0.9em;
+  color: var(--command);
+}
+
+.console-line[data-kind='dim'] {
+  color: var(--muted-text);
+}
+
+.console-line[data-kind='ok'] {
+  color: var(--ok);
+}
+
+.console-line[data-kind='bad'] {
+  color: var(--error);
+}
+
+.console-line a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.console-prompt {
+  display: flex;
+  gap: 0.6em;
+  margin-top: 0.9em;
+  color: var(--command);
+}
+
+.console-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
   background: none;
-  color: inherit;
+  color: var(--cyan);
   font: inherit;
+  caret-color: var(--command);
 }
 
-.staff-form input:focus-visible {
-  outline: 2px solid var(--hover);
-  outline-offset: 2px;
+.console-input:focus {
+  outline: none;
+}
+
+.console-input:disabled {
+  opacity: 0.5;
 }
 
 .staff-form .staff-send {
