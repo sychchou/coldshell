@@ -8,6 +8,13 @@ export const config = {
   port: Number(process.env.PORT ?? 8787),
   /** Where the site runs, for CORS in development. */
   appUrl: process.env.APP_URL ?? 'http://localhost:5173',
+  /** The cluster the program is deployed to. */
+  rpcUrl: process.env.RPC_URL ?? 'http://127.0.0.1:8899',
+  /**
+   * The wallet that pays every fee and all rent. A hot key by necessity — keep it away from the
+   * program's upgrade authority and keep only enough SOL in it to run for a while.
+   */
+  payerKeyPath: process.env.PAYER_KEY_PATH ?? '.keys/payer.json',
   clips: {
     /** Local storage until R2 is wired in; the directory is a volume in deployment. */
     dir: required('CLIP_DIR', 'data/clips'),

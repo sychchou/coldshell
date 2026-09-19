@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { config } from './config.ts'
 
@@ -23,13 +23,62 @@ function extensionFor(type: string) {
   throw new ClipError('unsupported recording format')
 }
 
+/** The clip and its note share a name; only the extension differs. */
+function stem(wallet: string, shell: number, day: number) {
+  if (!WALLET.test(wallet)) throw new ClipError('bad wallet')
+  if (!Number.isInteger(shell) || shell < 1) throw new ClipError('bad shell')
+  if (!Number.isInteger(day) || day < 1 || day > 70) throw new ClipError('bad day')
+  return `${wallet}/${shell}-${String(day).padStart(2, '0')}`
+}
+
 /** Everything about a clip that decides where it lives, checked before anything touches disk. */
 export function keyFor(meta: ClipMeta) {
-  if (!WALLET.test(meta.wallet)) throw new ClipError('bad wallet')
   if (!SHA256.test(meta.sha256)) throw new ClipError('bad hash')
-  if (!Number.isInteger(meta.shell) || meta.shell < 1) throw new ClipError('bad shell')
-  if (!Number.isInteger(meta.day) || meta.day < 1 || meta.day > 70) throw new ClipError('bad day')
-  return `${meta.wallet}/${meta.shell}-${String(meta.day).padStart(2, '0')}.${extensionFor(meta.type)}`
+  return `${stem(meta.wallet, meta.shell, meta.day)}.${extensionFor(meta.type)}`
+}
+
+/**
+ * What is known about a stored clip. The signature is the important part: the hash itself lives
+ * in the record_day instruction data, which is permanent — but only findable if you know which
+ * transaction to look in, and the event log that would otherwise say is pruned within days.
+ */
+export type Note = {
+  key: string
+  sha256: string
+  bytes: number
+  at: string
+  signature?: string
+}
+
+const notePath = (wallet: string, shell: number, day: number) =>
+  safePath(`${stem(wallet, shell, day)}.json`)
+
+function safePath(key: string) {
+  // resolve() keeps a crafted key from climbing out of the clip directory.
+  const path = resolve(join(config.clips.dir, key))
+  if (!path.startsWith(resolve(config.clips.dir))) throw new ClipError('bad key')
+  return path
+}
+
+export async function readNote(wallet: string, shell: number, day: number): Promise<Note | null> {
+  try {
+    return JSON.parse(await readFile(notePath(wallet, shell, day), 'utf8')) as Note
+  } catch {
+    return null
+  }
+}
+
+/** Ties the clip to the transaction that timestamped it, once that transaction has confirmed. */
+export async function noteSignature(
+  wallet: string,
+  shell: number,
+  day: number,
+  signature: string,
+) {
+  const note = await readNote(wallet, shell, day)
+  if (!note) throw new ClipError('no clip for that day')
+  await writeFile(notePath(wallet, shell, day), JSON.stringify({ ...note, signature }, null, 2))
+  return { ...note, signature }
 }
 
 export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
@@ -46,11 +95,12 @@ export async function store(meta: ClipMeta, bytes: Uint8Array) {
   if (digest !== meta.sha256) throw new ClipError('the upload does not match its hash')
 
   const key = keyFor(meta)
-  // resolve() keeps a crafted key from climbing out of the clip directory.
-  const path = resolve(join(config.clips.dir, key))
-  if (!path.startsWith(resolve(config.clips.dir))) throw new ClipError('bad key')
+  const path = safePath(key)
 
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, bytes)
-  return { key, bytes: bytes.byteLength, sha256: digest }
+
+  const note: Note = { key, sha256: digest, bytes: bytes.byteLength, at: new Date().toISOString() }
+  await writeFile(notePath(meta.wallet, meta.shell, meta.day), JSON.stringify(note, null, 2))
+  return note
 }
