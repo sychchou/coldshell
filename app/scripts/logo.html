@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  The square lockup: the name on two lines, tracked out so both read the same width.
+
+  Open this file and it draws the logo and offers it for download. It exists so the mark in
+  app/public is not a binary nobody can regenerate — the colours here are the site's own.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>coldshell logo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap" />
+    <style>
+      body { margin: 0; display: grid; place-items: center; gap: 20px; min-height: 100vh;
+             background: #1a1d22; font: 14px ui-monospace, monospace; color: #e7e9ed; }
+      canvas { width: 320px; height: 320px; border-radius: 12px; }
+      a { color: #7a9cff; }
+    </style>
+  </head>
+  <body>
+    <canvas id="logo" width="1024" height="1024"></canvas>
+    <a id="save" download="logo.png">download logo.png</a>
+    <script type="module">
+      const SIZE = 1024
+      const GROUND = '#0e1013' // --bg
+      const INK = '#7a9cff'    // --command, the colour an echoed command is printed in
+      const WORDS = ['cold', 'shell']
+
+      const canvas = document.getElementById('logo')
+      const ctx = canvas.getContext('2d')
+
+      await document.fonts.load('400 400px "Instrument Serif"')
+      await document.fonts.ready
+
+      const font = (px) => `400 ${px}px "Instrument Serif", Georgia, serif`
+
+      /** The ink a word actually puts on the page, which is what a lockup is aligned to. */
+      function inkOf(word, px, spacing) {
+        ctx.font = font(px)
+        ctx.letterSpacing = `${spacing}px`
+        const m = ctx.measureText(word)
+        return {
+          left: m.actualBoundingBoxLeft,
+          right: m.actualBoundingBoxRight,
+          width: m.actualBoundingBoxLeft + m.actualBoundingBoxRight,
+          ascent: m.actualBoundingBoxAscent,
+          descent: m.actualBoundingBoxDescent,
+        }
+      }
+
+      // Both lines end up the same width, which is what turns two words into one block. The
+      // shorter one is tracked out rather than stretched: widening a serif horizontally thins
+      // its verticals and thickens nothing, and the eye sees it immediately.
+      const px = 340
+      const natural = WORDS.map((w) => inkOf(w, px, 0).width)
+      const target = Math.max(...natural)
+      const tracking = WORDS.map((w, i) => (target - natural[i]) / (w.length - 1))
+
+      const margin = SIZE * 0.13
+      const scale = (SIZE - margin * 2) / target
+      const size = px * scale
+      const leading = size * 0.86
+      const spacing = tracking.map((t) => t * scale)
+
+      const ink = WORDS.map((w, i) => inkOf(w, size, spacing[i]))
+      // Centred on the ink itself: these words have no descenders, so centring on the baseline
+      // or the em box would both leave the block sitting visibly high.
+      const height = ink[0].ascent + leading + ink[1].descent
+      const baseline = (SIZE - height) / 2 + ink[0].ascent
+
+      ctx.fillStyle = GROUND
+      ctx.fillRect(0, 0, SIZE, SIZE)
+      ctx.fillStyle = INK
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+
+      WORDS.forEach((word, i) => {
+        ctx.font = font(size)
+        ctx.letterSpacing = `${spacing[i]}px`
+        ctx.fillText(word, (SIZE - ink[i].width) / 2 + ink[i].left, baseline + i * leading)
+      })
+
+      const url = canvas.toDataURL('image/png')
+      document.getElementById('save').href = url
+      window.LOGO = url
+    </script>
+  </body>
+</html>
