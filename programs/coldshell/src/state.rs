@@ -18,8 +18,12 @@ pub struct Run {
     pub stake: u64,
     /// One bit per day of the run; ten shells of seven days needs seventy.
     pub days: u128,
-    /// One bit per shell, set when its share leaves the vault by either claim or sweep.
-    pub settled: u16,
+    /// One bit per shell, set when its share went back to the participant.
+    pub claimed: u16,
+    /// One bit per shell, set when its share went to the treasury instead. Kept apart from
+    /// `claimed` because two bytes is a cheap price for being able to answer, forever, whether
+    /// a week came back or was forfeited.
+    pub swept: u16,
     pub started_at: i64,
     pub bump: u8,
 }
@@ -81,8 +85,13 @@ impl Run {
         self.days & mask == mask
     }
 
-    pub fn is_settled(&self, offset: u8) -> bool {
-        self.settled & (1u16 << offset) != 0
+    /// Shells whose money has left the vault, whichever way it went.
+    pub fn resolved(&self) -> u16 {
+        self.claimed | self.swept
+    }
+
+    pub fn is_resolved(&self, offset: u8) -> bool {
+        self.resolved() & (1u16 << offset) != 0
     }
 
     /// What one shell is worth. Division leaves at most a few millionths of a dollar over, and

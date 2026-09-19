@@ -34,7 +34,8 @@ pub struct Claim<'info> {
 pub fn handle_claim(ctx: Context<Claim>, shell: u8) -> Result<()> {
     let run = &mut ctx.accounts.run;
     require!(shell < run.shells, ErrorCode::InvalidShell);
-    require!(!run.is_settled(shell), ErrorCode::AlreadyClaimed);
+    require!(run.claimed & (1u16 << shell) == 0, ErrorCode::AlreadyClaimed);
+    require!(run.swept & (1u16 << shell) == 0, ErrorCode::AlreadySwept);
 
     let settles = run.shell_settles(shell)?;
     let now = Clock::get()?.unix_timestamp;
@@ -44,7 +45,7 @@ pub fn handle_claim(ctx: Context<Claim>, shell: u8) -> Result<()> {
     require!(now < run.claim_deadline(shell)?, ErrorCode::ClaimWindowClosed);
 
     let amount = run.share(shell)?;
-    run.settled |= 1u16 << shell;
+    run.claimed |= 1u16 << shell;
 
     let user = run.user;
     let seeds: &[&[u8]] = &[RUN_SEED, user.as_ref(), &[run.bump]];

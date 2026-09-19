@@ -12,7 +12,7 @@ pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDn
 #[constant]
 pub const RUN_SEED: &[u8] = b"run";
 
-/// Shells are 1 to 10 weeks, so ten bits of `settled` and seventy of `days`.
+/// Shells are 1 to 10 weeks, so ten bits of `claimed` and `swept` and seventy of `days`.
 #[constant]
 pub const MAX_SHELLS: u8 = 10;
 

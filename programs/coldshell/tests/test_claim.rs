@@ -54,7 +54,8 @@ fn a_finished_shell_comes_back_whole() {
 
     assert_eq!(token_amount(&env.svm, &ata(&user.pubkey())), 500 * USDC);
     assert_eq!(token_amount(&env.svm, &vault(&user.pubkey())), 0);
-    assert_eq!(run_state(&env.svm, &user.pubkey()).settled, 0b1);
+    let run = run_state(&env.svm, &user.pubkey());
+    assert_eq!((run.claimed, run.swept), (0b1, 0));
 }
 
 #[test]
@@ -102,7 +103,7 @@ fn the_claim_window_closes_after_four_weeks() {
 
     set_time(&mut env.svm, deadline(FIRST, 0));
     let err = claim(&mut env, &user, 0).unwrap_err();
-    assert!(err.contains("Custom(6010)"), "{err}");
+    assert!(err.contains("Custom(6011)"), "{err}");
 
     set_time(&mut env.svm, deadline(FIRST, 0) - 1);
     claim(&mut env, &user, 0).unwrap();
@@ -138,7 +139,9 @@ fn every_shell_settles_on_its_own() {
     assert_eq!(token_amount(&env.svm, &ata(&user.pubkey())), 490 * USDC);
     assert_eq!(token_amount(&env.svm, &treasury_ata()), 10 * USDC);
     assert_eq!(token_amount(&env.svm, &vault(&user.pubkey())), 0);
-    assert_eq!(run_state(&env.svm, &user.pubkey()).settled, 0b111);
+    // Two weeks back to the participant, the one with a day missing to the treasury.
+    let run = run_state(&env.svm, &user.pubkey());
+    assert_eq!((run.claimed, run.swept), (0b101, 0b010));
 }
 
 #[test]

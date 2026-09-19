@@ -20,8 +20,10 @@ pub enum ErrorCode {
     ShellNotOver,
     #[msg("A day of that shell is missing.")]
     WeekIncomplete,
-    #[msg("That shell has already been settled.")]
+    #[msg("That shell has already been claimed.")]
     AlreadyClaimed,
+    #[msg("That shell has already been swept.")]
+    AlreadySwept,
     #[msg("The four weeks to claim that shell have passed.")]
     ClaimWindowClosed,
     #[msg("That shell was finished and can still be claimed.")]

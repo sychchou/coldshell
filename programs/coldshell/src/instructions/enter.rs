@@ -63,7 +63,8 @@ pub fn handle_enter(ctx: Context<Enter>, shells: u8, stake: u64) -> Result<()> {
         shells,
         stake,
         days: 0,
-        settled: 0,
+        claimed: 0,
+        swept: 0,
         started_at: now,
         bump: ctx.bumps.run,
     });

@@ -50,7 +50,7 @@ pub struct Close<'info> {
 pub fn handle_close(ctx: Context<Close>) -> Result<()> {
     let run = &ctx.accounts.run;
     let all = (1u16 << run.shells) - 1;
-    if run.settled & all != all {
+    if run.resolved() & all != all {
         // Once the last shell's four weeks are up nothing can legitimately be claimed any more,
         // so the rest goes where a sweep would have sent it. Otherwise a participant could not
         // start again until we got round to sweeping the weeks they gave up on.

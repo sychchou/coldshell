@@ -27,7 +27,8 @@ fn enter_locks_the_stake() {
     assert_eq!(run.shells, 3);
     assert_eq!(run.stake, 30 * USDC);
     assert_eq!(run.days, 0);
-    assert_eq!(run.settled, 0);
+    assert_eq!(run.claimed, 0);
+    assert_eq!(run.swept, 0);
     assert_eq!(run.started_at, start(5));
 }
 
