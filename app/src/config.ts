@@ -4,7 +4,7 @@ import idl from './idl/coldshell.json'
 // Discord invite link — edit here
 export const DISCORD_INVITE_URL = 'https://discord.gg/QAJcGjP3Sh'
 // The code, open to anyone who wants to check what the program actually does.
-export const REPO_URL = 'https://github.com/rozzcho/coldshell'
+export const REPO_URL = 'https://github.com/suaacho/coldshell'
 
 // Defaults target the local validator (scripts/local-validator.sh); deployments set VITE_*.
 export const RPC_ENDPOINT = import.meta.env.VITE_RPC_URL ?? 'http://127.0.0.1:8899'

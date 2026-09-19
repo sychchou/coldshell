@@ -19,24 +19,7 @@ export function PlaneIcon() {
 }
 
 /** Email. */
-export function MailIcon() {
-  return (
-    <svg {...props} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-      <rect x="1.4" y="3.2" width="13.2" height="9.6" rx="1.4" />
-      <path d="m2.2 4.6 5.8 4.2 5.8-4.2" />
-    </svg>
-  )
-}
-
 /** Talking to the team, wherever that happens to be. */
-export function ChatIcon() {
-  return (
-    <svg {...props} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-      <path d="M8 2.4c3.6 0 6.5 2.2 6.5 5s-2.9 5-6.5 5c-.7 0-1.4-.1-2-.2l-3.4 1.6.9-2.6C2.2 10.3 1.5 9 1.5 7.4c0-2.8 2.9-5 6.5-5Z" />
-    </svg>
-  )
-}
-
 /** A repository of code. */
 export function CodeIcon() {
   return (
