@@ -10,7 +10,7 @@ const MIN_SHELLS = 1
 const MIN_STAKE = MIN_STAKE_USDC
 const MAX_STAKE = MAX_STAKE_USDC
 
-type Field = 'shells' | 'stake'
+type Field = 'calendar' | 'shells' | 'stake'
 
 /** What has been typed for a field, and whether it is still being typed. */
 type Entry = { value: string; editing: boolean }
@@ -74,7 +74,6 @@ export function RegisterPane({ active }: { active: boolean }) {
   const [stake, setStake] = useState<Entry | null>(null)
   const [order, setOrder] = useState<Field[]>([])
   const [paid, setPaid] = useState(false)
-  const [calendar, setCalendar] = useState(false)
 
   const editing = shells?.editing || stake?.editing
   const shellsDone = shells && !shells.editing ? Number(shells.value) : null
@@ -83,6 +82,11 @@ export function RegisterPane({ active }: { active: boolean }) {
 
   const open = (field: Field) => {
     setPaid(false)
+    if (field === 'calendar') {
+      // Running a command again puts its output at the bottom, where it was just asked for.
+      setOrder((current) => [...current.filter((f) => f !== 'calendar'), 'calendar'])
+      return
+    }
     setOrder((current) => (current.includes(field) ? current : [...current, field]))
     const entry = { value: '', editing: true }
     if (field === 'shells') setShells(entry)
@@ -102,7 +106,7 @@ export function RegisterPane({ active }: { active: boolean }) {
   const cancel = (field: Field) => {
     setOrder((current) => current.filter((f) => f !== field))
     if (field === 'shells') setShells(null)
-    else setStake(null)
+    if (field === 'stake') setStake(null)
   }
 
   useCommands(
@@ -110,11 +114,7 @@ export function RegisterPane({ active }: { active: boolean }) {
       chips: editing
         ? []
         : [
-            {
-              key: 'calendar',
-              label: calendar ? 'hide calendar' : 'calendar',
-              onClick: () => setCalendar((on) => !on),
-            },
+            { key: 'calendar', label: 'calendar', onClick: () => open('calendar') },
             { key: 'shells', label: shellsDone === null ? 'weeks' : 'edit weeks', onClick: () => open('shells') },
             { key: 'stake', label: stakeDone === null ? 'stake' : 'edit stake', onClick: () => open('stake') },
             ...(ready
@@ -131,13 +131,14 @@ export function RegisterPane({ active }: { active: boolean }) {
           ],
       back: order.length > 0 ? () => cancel(order[order.length - 1]) : undefined,
     },
-    [editing, shellsDone, stakeDone, ready, order.length, publicKey, calendar],
+    [editing, shellsDone, stakeDone, ready, order.length, publicKey],
     active,
   )
 
-  useScrollOutput([order.length, shellsDone, stakeDone, paid, editing, calendar])
+  useScrollOutput([order, shellsDone, stakeDone, paid, editing])
 
   const block = (field: Field) => {
+    if (field === 'calendar') return <ShellCalendar key="calendar" first={first} shells={shellsDone} />
     const entry = field === 'shells' ? shells : stake
     if (!entry) return null
     const label = field === 'shells' ? 'weeks' : 'stake'
@@ -191,8 +192,6 @@ export function RegisterPane({ active }: { active: boolean }) {
         each week is settled on its own. finish one and that week&rsquo;s share comes back in full;
         miss a day and only that week is gone.
       </p>
-
-      {calendar && <ShellCalendar first={first} shells={shellsDone} />}
 
       {order.map(block)}
 
