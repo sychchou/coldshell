@@ -10,7 +10,7 @@
  * moves the screen and the chain together.
  */
 
-import { DAYS_PER_SHELL, DAY_MS, SHELL_EPOCH_MS, SHORT_CLOCK } from '../config'
+import { DAYS_PER_SHELL, DAY_MS, SHELL_EPOCH_MS, SHORT_CLOCK, WEEK_MS } from '../config'
 
 const REAL_DAY = 86_400_000
 
@@ -73,6 +73,23 @@ export function today(now = Date.now()): Today {
 export function untilNextDay(now = Date.now()) {
   if (SHORT_CLOCK) return DAY_MS - ((now - SHELL_EPOCH_MS) % DAY_MS)
   return midnight(new Date(now)) + REAL_DAY - now
+}
+
+/**
+ * The local Monday a shell begins on — and, on the short clock, simply the moment it begins,
+ * since seventy-minute weeks have no monday to land on.
+ */
+export function mondayOfShell(index: number) {
+  if (SHORT_CLOCK) return new Date(SHELL_EPOCH_MS + (index - 1) * WEEK_MS)
+  const d = new Date(SHELL_EPOCH)
+  d.setDate(d.getDate() + (index - 1) * DAYS_PER_SHELL)
+  return d
+}
+
+/** The shell a moment belongs to, by the week it falls in. */
+export function shellOf(ts: number) {
+  if (SHORT_CLOCK) return Math.floor((ts - SHELL_EPOCH_MS) / WEEK_MS) + 1
+  return Math.floor(daysBetween(midnight(SHELL_EPOCH), mondayOf(ts)) / DAYS_PER_SHELL) + 1
 }
 
 /**

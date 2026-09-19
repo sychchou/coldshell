@@ -850,6 +850,145 @@ button.nav-link:focus-visible {
 }
 
 /* Staff page: a wide, plain read-out for running the challenges. */
+/* ── The shell calendar ───────────────────────────────────────────────────
+   `cal -3`, except a row is not only a week: it is the thing being bought. */
+
+.cal3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em 1.3em;
+  margin: 0.7em 0 0.4em;
+  /* A shade under the surrounding text, so three months sit side by side in the window. */
+  font-size: 0.95em;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+
+.cal3-title {
+  margin: 0 0 0.2em;
+  padding-left: 2.6em;
+  color: var(--muted-text);
+}
+
+.cal3-grid {
+  display: grid;
+  grid-template-columns: 2.6em repeat(7, 1.65em);
+}
+
+.cal3-week {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  border-left: 2px solid transparent;
+  margin-left: -2px;
+}
+
+.cal3-head,
+.cal3-day {
+  text-align: right;
+}
+
+.cal3-head {
+  color: var(--muted-text);
+}
+
+.cal3-gutter {
+  padding-right: 0.7em;
+  text-align: right;
+  color: var(--muted-text);
+}
+
+/* Days spilling in from the month either side: shown, because a shell does not stop at a
+   month's edge, but kept quiet. */
+.cal3-day[data-out] {
+  opacity: 0.35;
+}
+
+.cal3-day[data-today] {
+  color: var(--command);
+  font-weight: 600;
+}
+
+.cal3-week[data-row='past'] {
+  color: var(--muted-text);
+  opacity: 0.55;
+}
+
+.cal3-week[data-row='now'] {
+  border-left-color: var(--muted-border);
+}
+
+.cal3-week[data-row='now'] .cal3-gutter {
+  color: var(--muted-text);
+}
+
+.cal3-week[data-row='open'] {
+  border-left-color: color-mix(in srgb, var(--cyan) 30%, transparent);
+}
+
+.cal3-week[data-row='mine'] {
+  border-left-color: var(--command);
+  background: color-mix(in srgb, var(--command) 14%, transparent);
+}
+
+.cal3-week[data-row='mine'] .cal3-gutter {
+  color: var(--command);
+}
+
+.cal3-key {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin: 0 0.35em 0 0.9em;
+  vertical-align: -1px;
+  background: var(--muted-border);
+}
+
+.cal3-key:first-child {
+  margin-left: 0;
+}
+
+.cal3-key[data-row='mine'] {
+  background: var(--command);
+}
+
+.cal3-key[data-row='open'] {
+  background: color-mix(in srgb, var(--cyan) 30%, transparent);
+}
+
+/* With the short clock there is no month to sit in, so the shells are simply listed. */
+.cal3-list {
+  margin: 0.6em 0 0.4em;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal3-row {
+  padding-left: 0.5em;
+  border-left: 2px solid transparent;
+}
+
+.cal3-row[data-row='now'] {
+  border-left-color: var(--muted-border);
+  color: var(--muted-text);
+}
+
+.cal3-row[data-row='open'] {
+  border-left-color: color-mix(in srgb, var(--cyan) 30%, transparent);
+}
+
+.cal3-row[data-row='mine'] {
+  border-left-color: var(--command);
+  color: var(--command);
+}
+
+.cal3-row .cal3-gutter {
+  display: inline-block;
+  width: 3em;
+  text-align: left;
+}
+
 /* ── The back room ─────────────────────────────────────────────────────────
    A dashboard, not a page to read: dense, fixed columns, and every number in
    the same place from one row to the next. */

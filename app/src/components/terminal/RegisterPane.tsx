@@ -3,6 +3,7 @@ import { useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, MAX_SHELLS, MAX_STAKE_USDC, MIN_STAKE_USDC } from '../../config'
 import { startingShell } from '../../lib/shell'
 import { useCommands, useScrollOutput } from './chips'
+import { ShellCalendar } from './ShellCalendar'
 
 // The bounds come out of the program, so the screen cannot promise terms it would then refuse.
 const MIN_SHELLS = 1
@@ -73,6 +74,7 @@ export function RegisterPane({ active }: { active: boolean }) {
   const [stake, setStake] = useState<Entry | null>(null)
   const [order, setOrder] = useState<Field[]>([])
   const [paid, setPaid] = useState(false)
+  const [calendar, setCalendar] = useState(false)
 
   const editing = shells?.editing || stake?.editing
   const shellsDone = shells && !shells.editing ? Number(shells.value) : null
@@ -108,6 +110,11 @@ export function RegisterPane({ active }: { active: boolean }) {
       chips: editing
         ? []
         : [
+            {
+              key: 'calendar',
+              label: calendar ? 'hide calendar' : 'calendar',
+              onClick: () => setCalendar((on) => !on),
+            },
             { key: 'shells', label: shellsDone === null ? 'weeks' : 'edit weeks', onClick: () => open('shells') },
             { key: 'stake', label: stakeDone === null ? 'stake' : 'edit stake', onClick: () => open('stake') },
             ...(ready
@@ -124,11 +131,11 @@ export function RegisterPane({ active }: { active: boolean }) {
           ],
       back: order.length > 0 ? () => cancel(order[order.length - 1]) : undefined,
     },
-    [editing, shellsDone, stakeDone, ready, order.length, publicKey],
+    [editing, shellsDone, stakeDone, ready, order.length, publicKey, calendar],
     active,
   )
 
-  useScrollOutput([order.length, shellsDone, stakeDone, paid, editing])
+  useScrollOutput([order.length, shellsDone, stakeDone, paid, editing, calendar])
 
   const block = (field: Field) => {
     const entry = field === 'shells' ? shells : stake
@@ -184,6 +191,8 @@ export function RegisterPane({ active }: { active: boolean }) {
         each week is settled on its own. finish one and that week&rsquo;s share comes back in full;
         miss a day and only that week is gone.
       </p>
+
+      {calendar && <ShellCalendar first={first} shells={shellsDone} />}
 
       {order.map(block)}
 
