@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useWallet } from '@solana/wallet-adapter-react'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { DAYS_PER_SHELL, explorerTxUrl } from '../../config'
+import { claimTx, noteSignature, recordDayTx, sendPrepared } from '../../lib/api'
+import type { RunView } from '../../lib/useRun'
 import { QUESTIONS, questionOfTheDay } from '../../questions'
 import { ClipRecorder, CONSTRAINTS, MAX_MS, MIN_MS, clock, mb, pickMimeType, type Recording } from '../../lib/recorder'
 import { seal, type Sealed } from '../../lib/seal'
@@ -14,7 +17,8 @@ type Stage =
   | { kind: 'recording' }
   | { kind: 'done'; clip: Recording }
   | { kind: 'sealing'; clip: Recording; done: number }
-  | { kind: 'sealed'; clip: Recording; stored: Sealed }
+  | { kind: 'marking'; clip: Recording; stored: Sealed }
+  | { kind: 'sealed'; clip: Recording; stored: Sealed; signature: string }
   | { kind: 'error'; message: string }
 
 /** Each command's output, kept in the order it was run. */
@@ -52,8 +56,17 @@ function Days({ sealed, total }: { sealed: number; total: number }) {
  * while recording rather than read back from the file — a WebM from MediaRecorder does not carry
  * its own.
  */
-export function RecordPane({ active, onRegister }: { active: boolean; onRegister: () => void }) {
-  const { publicKey } = useWallet()
+export function RecordPane({
+  active,
+  run: view,
+  onRegister,
+}: {
+  active: boolean
+  run: RunView
+  onRegister: () => void
+}) {
+  const { connection } = useConnection()
+  const { publicKey, signTransaction } = useWallet()
   const [stage, setStage] = useState<Stage>({ kind: 'idle' })
   const [elapsed, setElapsed] = useState(0)
   const [log, setLog] = useState<Entry[]>([])
@@ -74,28 +87,53 @@ export function RecordPane({ active, onRegister }: { active: boolean; onRegister
   }, [])
   const now = today()
   void tick
-  // Nothing is enrolled yet, so this is the week's own count; with an enrolment it becomes 8 of 14.
-  const run = progress()
-  // Sealing is not built, so nobody has sealed a day. This becomes a read of the chain.
-  const sealed = 0
-  // Enrolment is not built either. This becomes a read of the participant account.
-  const enrolled = false
+  const { run, day, done, claimable } = view
+  // Without a run this is the week's own count; with one it becomes day 8 of 14.
+  const span = progress(Date.now(), run ? { firstShell: run.firstShell, shells: run.shells } : undefined)
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
-  const missing = !publicKey ? 'wallet' : !enrolled ? 'shell' : null
+  const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
+  // The shell the day being recorded belongs to — derived from the run, as the program derives it,
+  // so the clip and the instruction cannot disagree about which week this is.
+  const shell = run && day !== null ? run.firstShell + Math.floor(day / DAYS_PER_SHELL) : now.shell
 
+  /**
+   * Two steps, in this order. The clip goes up first because the chain records its hash: marking
+   * a day whose recording never arrived would put a promise on the ledger with nothing behind it.
+   */
   const sealClip = async (clip: Recording) => {
-    if (!publicKey) return
+    if (!publicKey || !signTransaction || day === null) return
+    const wallet = publicKey.toBase58()
     setStage({ kind: 'sealing', clip, done: 0 })
     try {
       const stored = await seal(
         clip.blob,
-        { wallet: publicKey.toBase58(), shell: now.shell, day: run.day, sha256: clip.sha256 },
+        { wallet, shell, day: day + 1, sha256: clip.sha256 },
         (fraction) => setStage({ kind: 'sealing', clip, done: fraction }),
       )
-      setStage({ kind: 'sealed', clip, stored })
       release()
+      setStage({ kind: 'marking', clip, stored })
+      const prepared = await recordDayTx(wallet, day, stored.sha256)
+      const signature = await sendPrepared(connection, signTransaction, prepared)
+      // The hash is permanent in the instruction data, but only findable through its signature.
+      await noteSignature(wallet, prepared.shell, day + 1, signature).catch(() => {})
+      setStage({ kind: 'sealed', clip, stored, signature })
+      await view.refresh()
     } catch (err) {
       setStage({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  const [claiming, setClaiming] = useState<{ shell: number; signature?: string; error?: string } | null>(null)
+
+  const claim = async (index: number) => {
+    if (!publicKey || !signTransaction) return
+    setClaiming({ shell: index })
+    try {
+      const signature = await sendPrepared(connection, signTransaction, await claimTx(publicKey.toBase58(), index))
+      setClaiming({ shell: index, signature })
+      await view.refresh()
+    } catch (err) {
+      setClaiming({ shell: index, error: err instanceof Error ? err.message : String(err) })
     }
   }
 
@@ -202,35 +240,49 @@ export function RecordPane({ active, onRegister }: { active: boolean; onRegister
                   ]
                 : stage.kind === 'sealing'
                   ? [{ key: 'sealing', label: `sealing… ${Math.round(stage.done * 100)}%`, disabled: true }]
-                  : stage.kind === 'sealed'
-                    ? [{ key: 'again', label: 'record again', onClick: start }]
-                    : stage.kind === 'done'
-                      ? [
-                          { key: 'again', label: 'record again', onClick: start },
-                          {
-                            key: 'seal',
-                            label: 'seal',
-                            tone: 'yes' as const,
-                            // Sealing sends the clip away, so it needs a wallet to file it under.
-                            onClick: () => sealClip(stage.clip),
-                            disabled: !publicKey,
-                          },
-                        ]
-                      : []),
+                  : stage.kind === 'marking'
+                    ? [{ key: 'marking', label: 'signing…', disabled: true }]
+                    : stage.kind === 'sealed'
+                      ? [{ key: 'again', label: 'record again', onClick: start }]
+                      : stage.kind === 'done'
+                        ? [
+                            { key: 'again', label: 'record again', onClick: start },
+                            {
+                              key: 'seal',
+                              label: 'seal',
+                              tone: 'yes' as const,
+                              // Sealing sends the clip away and marks the day, so it needs both a
+                              // wallet and a day of a run to mark.
+                              onClick: () => sealClip(stage.clip),
+                              disabled: !publicKey || day === null,
+                            },
+                          ]
+                        : []),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
+        // A finished week is worth collecting whatever else is on screen, so claim is not tucked
+        // behind the camera.
+        ...claimable.map((index) => ({
+          key: `claim-${index}`,
+          label: claiming?.shell === index && !claiming.signature && !claiming.error
+            ? 'claiming…'
+            : `claim shell ${index}`,
+          tone: 'yes' as const,
+          onClick: () => claim(index),
+          disabled: claiming?.shell === index && !claiming.error,
+        })),
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, claimable.join(), claiming],
     active,
   )
 
-  useScrollOutput([stage.kind, log.length])
+  useScrollOutput([stage.kind, log.length, claiming])
 
   return (
     <>
-      <p className="term-prompt">record --shell {now.shell}</p>
+      <p className="term-prompt">record --shell {shell}</p>
       <dl className="term-rows">
         <dt>date</dt>
         <dd>
@@ -239,8 +291,31 @@ export function RecordPane({ active, onRegister }: { active: boolean; onRegister
             <span className="term-dim"> · next day in {clock(untilNextDay())}</span>
           )}
         </dd>
-        {publicKey && <Days sealed={sealed} total={run.days} />}
+        {run && (
+          <>
+            <dt>run</dt>
+            <dd>
+              shell {run.firstShell}
+              {run.shells > 1 && ` – ${run.firstShell + run.shells - 1}`} ·{' '}
+              {day === null
+                ? run.firstShell > now.shell
+                  ? 'not started yet'
+                  : 'over'
+                : `day ${day + 1} of ${span.days}`}
+            </dd>
+          </>
+        )}
+        {run && <Days sealed={done} total={span.days} />}
       </dl>
+      {claiming?.signature && (
+        <p className="term-line">
+          shell {claiming.shell} came back.{' '}
+          <a className="term-dim" href={explorerTxUrl(claiming.signature)} target="_blank" rel="noreferrer">
+            {claiming.signature.slice(0, 16)}…
+          </a>
+        </p>
+      )}
+      {claiming?.error && <p className="term-line term-bad">{claiming.error}</p>}
 
       {log.map((entry) =>
         entry.command === 'example' ? (
@@ -297,7 +372,10 @@ export function RecordPane({ active, onRegister }: { active: boolean; onRegister
         ),
       )}
 
-      {(stage.kind === 'done' || stage.kind === 'sealing' || stage.kind === 'sealed') && (
+      {(stage.kind === 'done' ||
+        stage.kind === 'sealing' ||
+        stage.kind === 'marking' ||
+        stage.kind === 'sealed') && (
         <div className="term-block">
           <p className="term-head">clip</p>
           <dl className="term-rows">
@@ -316,13 +394,18 @@ export function RecordPane({ active, onRegister }: { active: boolean; onRegister
               <span className="term-meter">{bar(stage.done)}</span> {Math.round(stage.done * 100)}%
             </p>
           )}
+          {stage.kind === 'marking' && (
+            <p className="term-line term-dim">stored. approve the signature to date it…</p>
+          )}
           {stage.kind === 'sealed' && (
             <>
               <p className="term-line">
-                sealed. day {run.day} of shell {now.shell}.
+                sealed. day {(day ?? 0) + 1} of shell {shell}.
               </p>
               <p className="term-line term-dim">
-                writing it on chain is the next thing to build.
+                <a href={explorerTxUrl(stage.signature)} target="_blank" rel="noreferrer">
+                  {stage.signature.slice(0, 16)}…
+                </a>
               </p>
             </>
           )}

@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { useWallet } from '@solana/wallet-adapter-react'
-import { DAYS_PER_SHELL, MAX_SHELLS, MAX_STAKE_USDC, MIN_STAKE_USDC } from '../../config'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import {
+  DAYS_PER_SHELL,
+  MAX_SHELLS,
+  MAX_STAKE_USDC,
+  MIN_STAKE_USDC,
+  USDC_DECIMALS,
+  explorerTxUrl,
+} from '../../config'
+import { enterTx, sendPrepared } from '../../lib/api'
 import { startingShell } from '../../lib/shell'
+import type { RunView } from '../../lib/useRun'
 import { useCommands, useScrollOutput } from './chips'
 import { ShellCalendar } from './ShellCalendar'
 
@@ -65,15 +74,22 @@ function Prompt({
   )
 }
 
+type Payment =
+  | { kind: 'idle' }
+  | { kind: 'paying' }
+  | { kind: 'paid'; signature: string; firstShell: number }
+  | { kind: 'error'; message: string }
+
 /** Where a stake is placed and a run of shells begins. */
-export function RegisterPane({ active }: { active: boolean }) {
-  const { publicKey } = useWallet()
+export function RegisterPane({ active, run }: { active: boolean; run: RunView }) {
+  const { connection } = useConnection()
+  const { publicKey, signTransaction } = useWallet()
   // Shells start on Mondays, so a run paid for midweek begins on the next one.
   const first = startingShell()
   const [shells, setShells] = useState<Entry | null>(null)
   const [stake, setStake] = useState<Entry | null>(null)
   const [order, setOrder] = useState<Field[]>([])
-  const [paid, setPaid] = useState(false)
+  const [paid, setPaid] = useState<Payment>({ kind: 'idle' })
 
   const editing = shells?.editing || stake?.editing
   const shellsDone = shells && !shells.editing ? Number(shells.value) : null
@@ -81,7 +97,7 @@ export function RegisterPane({ active }: { active: boolean }) {
   const ready = shellsDone !== null && stakeDone !== null
 
   const open = (field: Field) => {
-    setPaid(false)
+    setPaid({ kind: 'idle' })
     if (field === 'calendar') {
       // Running a command again puts its output at the bottom, where it was just asked for.
       setOrder((current) => [...current.filter((f) => f !== 'calendar'), 'calendar'])
@@ -103,6 +119,23 @@ export function RegisterPane({ active }: { active: boolean }) {
     else setStake(done)
   }
 
+  /**
+   * The stake leaves the wallet here. The platform assembles the transaction and signs it as fee
+   * payer, so the only thing this wallet needs is USDC — never SOL.
+   */
+  const pay = async () => {
+    if (!publicKey || !signTransaction || shellsDone === null || stakeDone === null) return
+    setPaid({ kind: 'paying' })
+    try {
+      const prepared = await enterTx(publicKey.toBase58(), shellsDone, stakeDone * 10 ** USDC_DECIMALS)
+      const signature = await sendPrepared(connection, signTransaction, prepared)
+      setPaid({ kind: 'paid', signature, firstShell: prepared.firstShell })
+      await run.refresh()
+    } catch (err) {
+      setPaid({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   const cancel = (field: Field) => {
     setOrder((current) => current.filter((f) => f !== field))
     if (field === 'shells') setShells(null)
@@ -121,21 +154,21 @@ export function RegisterPane({ active }: { active: boolean }) {
               ? [
                   {
                     key: 'pay',
-                    label: 'pay',
+                    label: paid.kind === 'paying' ? 'paying…' : 'pay',
                     tone: 'yes' as const,
-                    onClick: () => setPaid(true),
-                    disabled: !publicKey,
+                    onClick: pay,
+                    disabled: !publicKey || paid.kind !== 'idle' || Boolean(run.run),
                   },
                 ]
               : []),
           ],
       back: order.length > 0 ? () => cancel(order[order.length - 1]) : undefined,
     },
-    [editing, shellsDone, stakeDone, ready, order.length, publicKey],
+    [editing, shellsDone, stakeDone, ready, order.length, publicKey, paid.kind, run.run],
     active,
   )
 
-  useScrollOutput([order, shellsDone, stakeDone, paid, editing])
+  useScrollOutput([order, shellsDone, stakeDone, paid.kind, editing])
 
   const block = (field: Field) => {
     if (field === 'calendar') return <ShellCalendar key="calendar" first={first} shells={shellsDone} />
@@ -195,13 +228,32 @@ export function RegisterPane({ active }: { active: boolean }) {
 
       {order.map(block)}
 
-      {paid && (
+      {paid.kind !== 'idle' && (
         <div className="term-entry">
           <p className="term-prompt">pay</p>
-          <p className="term-line term-dim">
-            nothing to pay into yet — the program comes next.
-          </p>
+          {paid.kind === 'paying' && (
+            <p className="term-line term-dim">approve it in your wallet…</p>
+          )}
+          {paid.kind === 'error' && <p className="term-line term-bad">{paid.message}</p>}
+          {paid.kind === 'paid' && (
+            <>
+              <p className="term-line">
+                staked. your run begins in shell {paid.firstShell}.
+              </p>
+              <p className="term-line term-dim">
+                <a href={explorerTxUrl(paid.signature)} target="_blank" rel="noreferrer">
+                  {paid.signature.slice(0, 16)}…
+                </a>
+              </p>
+            </>
+          )}
         </div>
+      )}
+      {run.run && paid.kind === 'idle' && (
+        <p className="term-line term-dim">
+          this wallet already has a run open — shell {run.run.firstShell}
+          {run.run.shells > 1 && ` – ${run.run.firstShell + run.run.shells - 1}`}. one at a time.
+        </p>
       )}
       {ready && !publicKey && <p className="term-line term-bad">connect a wallet to pay.</p>}
     </>

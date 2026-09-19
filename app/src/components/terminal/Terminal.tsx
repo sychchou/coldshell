@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { NETWORK_LABEL } from '../../config'
+import { useRun } from '../../lib/useRun'
 import { ChipBar, ChipProvider, type Commands } from './chips'
 import { CommunityPane } from './CommunityPane'
 import { RecordPane } from './RecordPane'
@@ -21,6 +22,9 @@ const TABS: { key: TabKey; label: string }[] = [
  */
 export function Terminal({ onTint }: { onTint: (colour: string) => void }) {
   const { publicKey } = useWallet()
+  // One read of the chain for the whole window: registering and recording are two views of the
+  // same account, and two copies of it would disagree the moment either one moved.
+  const run = useRun()
   const [tab, setTab] = useState<TabKey>('record')
   const [commands, setCommands] = useState<Commands>({ chips: [] })
   // One counter per tab: resetting remounts that pane only, so you stay where you are.
@@ -88,11 +92,12 @@ export function Terminal({ onTint }: { onTint: (colour: string) => void }) {
               <RecordPane
                 key={sessions.record}
                 active={tab === 'record'}
+                run={run}
                 onRegister={() => setTab('next')}
               />
             </div>
             <div hidden={tab !== 'next'}>
-              <RegisterPane key={sessions.next} active={tab === 'next'} />
+              <RegisterPane key={sessions.next} active={tab === 'next'} run={run} />
             </div>
             {joined && (
               <div hidden={tab !== 'community'}>
