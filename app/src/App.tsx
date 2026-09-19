@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { StaffPage } from './components/StaffPage'
+import { StaffPage } from './components/staff/StaffPage'
 import { Contact } from './components/Contact'
 import { Tagline } from './components/Tagline'
 import { Terminal } from './components/terminal/Terminal'

@@ -16,6 +16,7 @@
   /* The echoed command line, so each step is easy to tell apart. */
   --command: #7a9cff;
   /* Wallet and Discord keep their own colours. */
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   --wallet: #512da8;
   --wallet-hover: #3b1f82;
   color-scheme: dark;
@@ -849,108 +850,558 @@ button.nav-link:focus-visible {
 }
 
 /* Staff page: a wide, plain read-out for running the challenges. */
+/* ── The back room ─────────────────────────────────────────────────────────
+   A dashboard, not a page to read: dense, fixed columns, and every number in
+   the same place from one row to the next. */
+
 .staff {
+  --line: color-mix(in srgb, var(--cyan) 14%, transparent);
+  --panel: var(--term-bg);
   flex: 1 1 auto;
   display: flex;
-  min-height: 0;
-  padding: clamp(10px, 1.6vw, 20px);
-  font-size: clamp(12px, 0.95vw, 14px);
-}
-
-/* The back room is one window and nothing else, so it takes the whole screen. */
-.console {
-  --pad: 1.1em;
-  display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--term-edge);
-  border-radius: 6px;
-  background: var(--term-bg);
-  line-height: 1.5;
-  overflow: hidden;
+  gap: 18px;
+  padding: clamp(14px, 2vw, 26px);
+  font-size: clamp(12px, 0.92vw, 14px);
+  line-height: 1.45;
 }
 
-.console-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1em;
-  padding: 0.5em var(--pad);
-  border-bottom: 1px solid var(--term-edge);
-}
-
-.console-name {
+.staff .dim {
   color: var(--muted-text);
 }
 
-.console-account .wallet-adapter-button {
-  height: 2.2em;
-  font-size: 0.95em;
-}
-
-/* Output and input share one scrolling surface, the way a real terminal does. */
-.console-out {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.9em var(--pad) 1.4em;
-  background: var(--out-bg);
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  cursor: text;
-}
-
-.console-line {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.console-line[data-kind='cmd'] {
-  margin-top: 0.9em;
-  color: var(--command);
-}
-
-.console-line[data-kind='dim'] {
-  color: var(--muted-text);
-}
-
-.console-line[data-kind='ok'] {
-  color: var(--ok);
-}
-
-.console-line[data-kind='bad'] {
+.staff .warn {
   color: var(--error);
 }
 
-.console-line a {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.staff h1 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
-.console-prompt {
+.staff h2 {
+  margin: 0 0 8px;
+  font-size: 1.05em;
+  font-weight: 500;
+}
+
+.staff h3 {
+  margin: 16px 0 6px;
+  font-size: 0.92em;
+  font-weight: 500;
+  color: var(--muted-text);
+}
+
+.staff-top {
   display: flex;
-  gap: 0.6em;
-  margin-top: 0.9em;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+}
+
+.staff-clock {
+  margin: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-top-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.staff-top-end .wallet-adapter-button {
+  height: 2.4em;
+  font-size: 0.95em;
+}
+
+.staff-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 2px solid var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  color: var(--error);
+}
+
+/* The standing: six numbers that should never need explaining. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--panel);
+}
+
+.tile-label {
+  color: var(--muted-text);
+}
+
+.tile-value {
+  font-family: var(--mono);
+  font-size: 1.5em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile[data-warn] .tile-value {
+  color: var(--error);
+}
+
+.tile-note {
+  color: var(--muted-text);
+}
+
+/* Board and detail sit side by side until there is no room for both. */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 18px;
+  margin-bottom: 10px;
+}
+
+.board-head p {
+  margin: 0;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager strong {
+  min-width: 11ch;
+  font-weight: 500;
+}
+
+.pager button {
+  padding: 2px 8px;
+  border: 1px solid var(--muted-border);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pager button:hover {
+  border-color: var(--cyan);
+}
+
+.focus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+}
+
+/* ── The calendar ─────────────────────────────────────────────────────────
+   Weeks run monday to sunday, so one row is exactly one shell. Gutter, seven
+   days, three money columns — the same grid on every row. */
+
+.cal {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.cal-head,
+.cal-row {
+  display: grid;
+  grid-template-columns: 5.5em repeat(7, minmax(0, 1fr)) repeat(3, 5.5em);
+  gap: 1px;
+}
+
+.cal-head {
+  background: var(--line);
+}
+
+.cal-weekday,
+.cal-head .cal-money,
+.cal-head .cal-gutter {
+  padding: 5px 8px;
+  background: var(--panel);
+  color: var(--muted-text);
+}
+
+.cal-head .cal-money {
+  text-align: right;
+}
+
+.cal-gutter {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 8px;
+  background: var(--panel);
+}
+
+.cal-gutter b {
+  font-weight: 500;
+}
+
+.cal-gutter small,
+.cal-gutter b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-gutter small {
+  color: var(--muted-text);
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 3.6em;
+  padding: 6px 8px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-day:hover {
+  background: color-mix(in srgb, var(--cyan) 7%, var(--panel));
+}
+
+.cal-day[aria-pressed='true'] {
+  outline: 2px solid var(--command);
+  outline-offset: -2px;
+}
+
+.cal-day[data-muted] {
+  color: var(--muted-text);
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+
+.cal-day[data-today] .cal-date {
+  color: var(--command);
+  font-weight: 600;
+}
+
+.cal-date {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-note {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  color: var(--muted-text);
+}
+
+/* State is a stripe down the left edge, so a whole month reads at a glance. */
+.cal-day[data-mark='done'] {
+  border-left-color: var(--ok);
+}
+
+.cal-day[data-mark='open'] {
+  border-left-color: var(--command);
+}
+
+.cal-day[data-mark='missed'] {
+  border-left-color: var(--error);
+}
+
+.cal-day[data-mark='ahead'] {
+  border-left-color: var(--muted-border);
+}
+
+.cal-money {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px 8px;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-money[data-warn] {
+  color: var(--error);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  color: var(--muted-text);
+}
+
+.legend i {
+  width: 2px;
+  height: 1em;
+  margin-right: -8px;
+  background: var(--muted-border);
+}
+
+.legend i[data-mark='done'] {
+  background: var(--ok);
+}
+
+.legend i[data-mark='open'] {
+  background: var(--command);
+}
+
+.legend i[data-mark='missed'] {
+  background: var(--error);
+}
+
+/* ── The panel beside it ─────────────────────────────────────────────────── */
+
+.detail {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.detail h2 {
+  font-family: var(--mono);
+}
+
+.detail-sub {
+  margin: 0;
+  color: var(--muted-text);
+  font-family: var(--mono);
+}
+
+.detail-empty {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.detail-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 14px 0 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-rows dt {
+  color: var(--muted-text);
+}
+
+.detail-rows dd {
+  margin: 0;
+}
+
+.detail-rows small {
+  color: var(--muted-text);
+}
+
+.detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 10px;
+  font-family: var(--mono);
+}
+
+.detail-state[data-mark='done'] {
+  color: var(--ok);
+}
+
+.detail-state[data-mark='open'] {
   color: var(--command);
 }
 
-.console-input {
-  flex: 1 1 auto;
-  min-width: 0;
+.detail-state[data-mark='missed'] {
+  color: var(--error);
+}
+
+.detail-state[data-mark='ahead'] {
+  color: var(--muted-text);
+}
+
+.detail-dim {
+  grid-column: 1 / -1;
+  color: var(--muted-text);
+}
+
+/* ── Every run ───────────────────────────────────────────────────────────── */
+
+.board-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runs {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.runs th,
+.runs td {
+  padding: 7px 12px 7px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.runs th {
+  color: var(--muted-text);
+  font-weight: 400;
+}
+
+.runs td.num {
+  text-align: right;
+  padding-right: 24px;
+}
+
+.runs td.dim {
+  color: var(--muted-text);
+}
+
+.runs tr[data-focus] {
+  background: color-mix(in srgb, var(--command) 12%, transparent);
+}
+
+.runs .actions {
+  display: flex;
+  gap: 8px;
+  padding-right: 0;
+}
+
+.pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.pip {
+  width: 12px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--muted-border);
+  border-radius: 2px;
+  background: none;
+  cursor: default;
+}
+
+.pip[data-state='done'],
+.pip[data-state='returned'] {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.pip[data-state='claimable'] {
+  border-color: var(--ok);
+}
+
+.pip[data-state='swept'] {
+  border-color: var(--muted-border);
+  background: var(--muted-border);
+}
+
+.pip[data-state='forfeit'],
+.pip[data-state='expired'] {
+  border-color: var(--error);
+  background: var(--error);
+  cursor: pointer;
+}
+
+.pip:disabled {
+  cursor: default;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.staff .link {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--cyan);
+  color: inherit;
   font: inherit;
-  caret-color: var(--command);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
-.console-input:focus {
-  outline: none;
+.staff .link:hover {
+  color: var(--command);
 }
 
-.console-input:disabled {
-  opacity: 0.5;
+.staff .act {
+  padding: 3px 10px;
+  border: 1px solid var(--muted-border);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.staff .act:hover:not(:disabled) {
+  border-color: var(--cyan);
+}
+
+.staff .act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 1000px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cal-head,
+  .cal-row {
+    grid-template-columns: 4.5em repeat(7, minmax(0, 1fr));
+  }
+
+  .cal-money {
+    display: none;
+  }
 }
 
 .staff-form .staff-send {

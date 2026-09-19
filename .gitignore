@@ -17,3 +17,4 @@ server/data
 app/.vercel
 app/.env
 app/.env.local
+.fixtures/
