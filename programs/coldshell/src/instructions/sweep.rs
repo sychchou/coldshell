@@ -5,22 +5,27 @@ use anchor_spl::token_interface::{
 
 use crate::{constants::*, error::ErrorCode, state::Run};
 
-/// Takes back one finished week, whole. There is no pool and no fee: a week you did every day of
-/// returns exactly what you staked on it.
+/// Collects a week the participant did not finish, or one they finished and never came back for.
+///
+/// This is the platform's only income, which is exactly why the record it reads has to live
+/// somewhere the platform cannot edit.
+///
+/// Anyone may call it. The money can only ever go to the treasury's own token account, so there
+/// is nothing to gain by calling it early and nothing to lose by letting a stranger call it late
+/// — and the treasury key never has to sit on a server to keep the books moving.
 #[derive(Accounts)]
-pub struct Claim<'info> {
-    pub user: Signer<'info>,
-    #[account(mut, has_one = user, seeds = [RUN_SEED, user.key().as_ref()], bump = run.bump)]
+pub struct Sweep<'info> {
+    #[account(mut, seeds = [RUN_SEED, run.user.as_ref()], bump = run.bump)]
     pub run: Box<Account<'info, Run>>,
     #[account(address = USDC_MINT, mint::token_program = token_program)]
     pub mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
-        token::mint = mint,
-        token::authority = user,
-        token::token_program = token_program,
+        associated_token::mint = mint,
+        associated_token::authority = TREASURY,
+        associated_token::token_program = token_program,
     )]
-    pub user_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub treasury_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = mint,
@@ -31,17 +36,18 @@ pub struct Claim<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn handle_claim(ctx: Context<Claim>, shell: u8) -> Result<()> {
+pub fn handle_sweep(ctx: Context<Sweep>, shell: u8) -> Result<()> {
     let run = &mut ctx.accounts.run;
     require!(shell < run.shells, ErrorCode::InvalidShell);
     require!(!run.is_settled(shell), ErrorCode::AlreadyClaimed);
 
-    let settles = run.shell_settles(shell)?;
     let now = Clock::get()?.unix_timestamp;
-    require!(now >= settles, ErrorCode::ShellNotOver);
-    // Said before the deadline, because "you missed a day" is the truer answer of the two.
-    require!(run.shell_complete(shell), ErrorCode::WeekIncomplete);
-    require!(now < run.claim_deadline(shell)?, ErrorCode::ClaimWindowClosed);
+    require!(now >= run.shell_settles(shell)?, ErrorCode::ShellNotOver);
+
+    // A week that was finished belongs to the participant until their four weeks run out.
+    if run.shell_complete(shell) {
+        require!(now >= run.claim_deadline(shell)?, ErrorCode::ClaimsPending);
+    }
 
     let amount = run.share(shell)?;
     run.settled |= 1u16 << shell;
@@ -54,7 +60,7 @@ pub fn handle_claim(ctx: Context<Claim>, shell: u8) -> Result<()> {
             TransferChecked {
                 from: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
-                to: ctx.accounts.user_token_account.to_account_info(),
+                to: ctx.accounts.treasury_token_account.to_account_info(),
                 authority: run.to_account_info(),
             },
             &[seeds],

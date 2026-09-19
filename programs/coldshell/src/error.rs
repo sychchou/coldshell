@@ -2,44 +2,34 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Unknown challenge track")]
-    InvalidTrack,
-    #[msg("Multiply must be between 1 and 10")]
-    InvalidMultiply,
-    #[msg("Registration for this challenge is not open")]
-    RegistrationClosed,
-    #[msg("Registration must be co-signed by the verifier")]
-    InvalidVerifier,
-    #[msg("That day is not part of this challenge")]
+    #[msg("A run is between 1 and 10 shells.")]
+    InvalidShells,
+    #[msg("A stake is between 10 and 200 USDC.")]
+    InvalidStake,
+    #[msg("That day is not part of this run.")]
     InvalidDay,
-    #[msg("That day has not started yet")]
+    #[msg("That day is already recorded.")]
+    AlreadyRecorded,
+    #[msg("That day has not started yet.")]
     DayNotStarted,
-    #[msg("Progress can no longer be recorded for this challenge")]
+    #[msg("That day can no longer be recorded.")]
     RecordingClosed,
-    #[msg("Results are not open yet: the challenge or its record window is still running")]
-    ChallengeNotOver,
-    #[msg("This participant was already counted")]
-    AlreadyTallied,
-    #[msg("Every participant must be counted first")]
-    NotFinalized,
-    #[msg("Only participants who passed every day can claim")]
-    NotAWinner,
-    #[msg("Already claimed")]
+    #[msg("That shell is not part of this run.")]
+    InvalidShell,
+    #[msg("That shell is still running.")]
+    ShellNotOver,
+    #[msg("A day of that shell is missing.")]
+    WeekIncomplete,
+    #[msg("That shell has already been settled.")]
     AlreadyClaimed,
-    #[msg("Everyone must claim before fees can be withdrawn")]
-    ClaimsPending,
-    #[msg("This challenge has winners, so nothing rolls over")]
-    NothingToRollOver,
-    #[msg("The prize pool already rolled over")]
-    AlreadyRolledOver,
-    #[msg("The prize pool can only roll over into a later challenge on the same track")]
-    InvalidRolloverTarget,
-    #[msg("You are already in a challenge on another track at that time")]
-    OverlappingChallenge,
-    #[msg("The claim window for this challenge has closed")]
+    #[msg("The four weeks to claim that shell have passed.")]
     ClaimWindowClosed,
-    #[msg("Warnings can no longer be given for this challenge")]
-    WarningsClosed,
-    #[msg("Arithmetic overflow")]
+    #[msg("That shell was finished and can still be claimed.")]
+    ClaimsPending,
+    #[msg("Every shell has to be settled before the run can be closed.")]
+    ShellsPending,
+    #[msg("Only the participant or the treasury can do that.")]
+    Unauthorized,
+    #[msg("Arithmetic overflowed.")]
     MathOverflow,
 }

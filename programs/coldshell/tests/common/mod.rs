@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use {
     anchor_lang::{
         prelude::{Clock, Pubkey},
@@ -5,14 +7,14 @@ use {
         system_program, AccountDeserialize, InstructionData, ToAccountMetas,
     },
     anchor_spl::{associated_token, token},
-    litesvm::LiteSVM,
     coldshell::{
         constants::{
-            track_config, WARNING_SEED, CHALLENGE_SEED, DISCORD_LOCK_SEED, DISCORD_SEED, PARTICIPANT_SEED, WALLET_LOCK_SEED, TRACK_WEEKLY, TREASURY, USDC_MINT, VERIFIER,
-            WEEKLY_ENTRY_FEE, WEEKLY_LAUNCH_TS, WEEK_SECONDS,
+            CLAIM_WINDOW_SECONDS, DAY_SECONDS, RECORD_LATE_SECONDS, RUN_SEED, SHELL_EPOCH_TS,
+            TREASURY, USDC_MINT, WEEK_SECONDS,
         },
-        state::{Challenge, DiscordLink, Participant},
+        state::Run,
     },
+    litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
@@ -21,11 +23,11 @@ use {
 };
 
 pub const USDC: u64 = 1_000_000;
-pub const DAY: i64 = 24 * 60 * 60;
 
 pub struct Env {
     pub svm: LiteSVM,
-    pub verifier: Keypair,
+    /// The platform. Pays every fee and every lamport of rent, exactly as it does in production.
+    pub payer: Keypair,
 }
 
 pub fn setup(now: i64) -> Env {
@@ -33,32 +35,20 @@ pub fn setup(now: i64) -> Env {
     let bytes = include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/coldshell.so"));
     svm.add_program(coldshell::id(), bytes).unwrap();
 
-    let verifier = load_keypair(concat!(env!("CARGO_MANIFEST_DIR"), "/../../server/.keys/verifier.json"));
-    assert_eq!(verifier.pubkey(), VERIFIER, "server/.keys/verifier.json must match VERIFIER");
-
-    // The oracle pays the fees for recording progress.
-    svm.airdrop(&verifier.pubkey(), 10_000_000_000).unwrap();
+    let payer = Keypair::new();
+    svm.airdrop(&payer.pubkey(), 100_000_000_000).unwrap();
+    // The treasury exists on chain but never signs anything here — sweeping is permissionless.
+    svm.airdrop(&TREASURY, 1_000_000_000).unwrap();
     set_mint(&mut svm, &USDC_MINT, 6);
+    set_token_account(&mut svm, &treasury_ata(), &USDC_MINT, &TREASURY, 0);
     set_time(&mut svm, now);
-    Env { svm, verifier }
+    Env { svm, payer }
 }
 
 pub fn set_time(svm: &mut LiteSVM, now: i64) {
     let mut clock = svm.get_sysvar::<Clock>();
     clock.unix_timestamp = now;
     svm.set_sysvar(&clock);
-}
-
-pub fn load_keypair(path: &str) -> Keypair {
-    let data = std::fs::read_to_string(path).unwrap_or_else(|_| panic!("missing {path}"));
-    let bytes: Vec<u8> = data
-        .trim()
-        .trim_start_matches('[')
-        .trim_end_matches(']')
-        .split(',')
-        .map(|n| n.trim().parse().unwrap())
-        .collect();
-    Keypair::try_from(bytes.as_slice()).unwrap()
 }
 
 pub fn set_mint(svm: &mut LiteSVM, mint: &Pubkey, decimals: u8) {
@@ -73,7 +63,13 @@ pub fn set_mint(svm: &mut LiteSVM, mint: &Pubkey, decimals: u8) {
     .unwrap();
 }
 
-pub fn set_token_account(svm: &mut LiteSVM, address: &Pubkey, mint: &Pubkey, owner: &Pubkey, amount: u64) {
+pub fn set_token_account(
+    svm: &mut LiteSVM,
+    address: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    amount: u64,
+) {
     // spl-token Account layout (165 bytes)
     let mut data = vec![0u8; 165];
     data[0..32].copy_from_slice(mint.as_ref());
@@ -96,71 +92,76 @@ pub fn ata(owner: &Pubkey) -> Pubkey {
     associated_token::get_associated_token_address(owner, &USDC_MINT)
 }
 
-pub fn challenge_pda(track: u8, id: u64) -> Pubkey {
-    Pubkey::find_program_address(&[CHALLENGE_SEED, &[track], &id.to_le_bytes()], &coldshell::id()).0
+pub fn treasury_ata() -> Pubkey {
+    ata(&TREASURY)
 }
 
-pub fn participant_pda(challenge: &Pubkey, user: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[PARTICIPANT_SEED, challenge.as_ref(), user.as_ref()], &coldshell::id()).0
+pub fn run_pda(user: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[RUN_SEED, user.as_ref()], &coldshell::id()).0
 }
 
-pub fn discord_link_pda(challenge: &Pubkey, discord_id: u64) -> Pubkey {
-    Pubkey::find_program_address(
-        &[DISCORD_SEED, challenge.as_ref(), &discord_id.to_le_bytes()],
-        &coldshell::id(),
-    )
-    .0
+pub fn vault(user: &Pubkey) -> Pubkey {
+    ata(&run_pda(user))
 }
 
-pub fn wallet_lock_pda(user: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[WALLET_LOCK_SEED, user.as_ref()], &coldshell::id()).0
-}
-
-pub fn discord_lock_pda(discord_id: u64) -> Pubkey {
-    Pubkey::find_program_address(&[DISCORD_LOCK_SEED, &discord_id.to_le_bytes()], &coldshell::id()).0
+pub fn run_state(svm: &LiteSVM, user: &Pubkey) -> Run {
+    let acc = svm.get_account(&run_pda(user)).unwrap();
+    Run::try_deserialize(&mut acc.data.as_slice()).unwrap()
 }
 
 /// First signer pays fees.
 pub fn send(svm: &mut LiteSVM, ix: Instruction, signers: &[&Keypair]) -> Result<(), String> {
     svm.expire_blockhash();
-    let msg = Message::new_with_blockhash(&[ix], Some(&signers[0].pubkey()), &svm.latest_blockhash());
+    let msg =
+        Message::new_with_blockhash(&[ix], Some(&signers[0].pubkey()), &svm.latest_blockhash());
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).unwrap();
     svm.send_transaction(tx).map(|_| ()).map_err(|e| format!("{:?}", e.err))
 }
 
-pub struct Reg {
-    pub track: u8,
-    pub challenge_id: u64,
-    pub discord_id: u64,
-    pub multiply: u8,
+/// A participant with USDC and not one lamport. If any instruction ever starts asking the
+/// participant for rent or fees, every test using this fails at once.
+pub fn new_user(svm: &mut LiteSVM, usdc: u64) -> Keypair {
+    let user = Keypair::new();
+    set_token_account(svm, &ata(&user.pubkey()), &USDC_MINT, &user.pubkey(), usdc);
+    user
 }
 
-pub fn weekly(challenge_id: u64, discord_id: u64, multiply: u8) -> Reg {
-    Reg { track: TRACK_WEEKLY, challenge_id, discord_id, multiply }
+// ── The clock, mirrored so a test reads next to the handler ──────────────────
+
+pub fn shell_start(index: u32) -> i64 {
+    SHELL_EPOCH_TS + i64::from(index - 1) * WEEK_SECONDS
 }
 
-pub fn register_ix(user: &Pubkey, verifier: &Pubkey, r: &Reg) -> Instruction {
-    let challenge = challenge_pda(r.track, r.challenge_id);
+pub fn current_shell(now: i64) -> u32 {
+    u32::try_from((now - SHELL_EPOCH_TS) / WEEK_SECONDS + 1).unwrap()
+}
+
+pub fn day_start(first_shell: u32, day: u16) -> i64 {
+    shell_start(first_shell) + i64::from(day) * DAY_SECONDS
+}
+
+/// When a shell's money can move: a day past the week's end, where the last day's grace runs out.
+pub fn settles(first_shell: u32, offset: u8) -> i64 {
+    shell_start(first_shell + u32::from(offset)) + WEEK_SECONDS + RECORD_LATE_SECONDS - DAY_SECONDS
+}
+
+pub fn deadline(first_shell: u32, offset: u8) -> i64 {
+    settles(first_shell, offset) + CLAIM_WINDOW_SECONDS
+}
+
+// ── Instructions ─────────────────────────────────────────────────────────────
+
+pub fn enter_ix(user: &Pubkey, payer: &Pubkey, shells: u8, stake: u64) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::Register {
-            track: r.track,
-            challenge_id: r.challenge_id,
-            discord_id: r.discord_id,
-            multiply: r.multiply,
-        }
-        .data(),
-        coldshell::accounts::Register {
+        &coldshell::instruction::Enter { shells, stake }.data(),
+        coldshell::accounts::Enter {
             user: *user,
-            verifier: *verifier,
-            challenge,
-            participant: participant_pda(&challenge, user),
-            discord_link: discord_link_pda(&challenge, r.discord_id),
-            wallet_lock: wallet_lock_pda(user),
-            discord_lock: discord_lock_pda(r.discord_id),
+            payer: *payer,
+            run: run_pda(user),
             mint: USDC_MINT,
             user_token_account: ata(user),
-            vault: ata(&challenge),
+            vault: vault(user),
             token_program: token::ID,
             associated_token_program: associated_token::ID,
             system_program: system_program::ID,
@@ -169,146 +170,92 @@ pub fn register_ix(user: &Pubkey, verifier: &Pubkey, r: &Reg) -> Instruction {
     )
 }
 
-pub fn new_user(svm: &mut LiteSVM, usdc: u64) -> Keypair {
-    let user = Keypair::new();
-    svm.airdrop(&user.pubkey(), 1_000_000_000).unwrap();
-    set_token_account(svm, &ata(&user.pubkey()), &USDC_MINT, &user.pubkey(), usdc);
-    user
-}
-
-pub fn register(env: &mut Env, user: &Keypair, r: &Reg) -> Result<(), String> {
-    let ix = register_ix(&user.pubkey(), &env.verifier.pubkey(), r);
-    let verifier = env.verifier.insecure_clone();
-    send(&mut env.svm, ix, &[user, &verifier])
-}
-
-pub fn challenge_state(svm: &LiteSVM, id: u64) -> Challenge {
-    let acc = svm.get_account(&challenge_pda(TRACK_WEEKLY, id)).unwrap();
-    Challenge::try_deserialize(&mut acc.data.as_slice()).unwrap()
-}
-
-
-pub fn participant_state(svm: &LiteSVM, challenge: &Pubkey, user: &Pubkey) -> Participant {
-    let acc = svm.get_account(&participant_pda(challenge, user)).unwrap();
-    Participant::try_deserialize(&mut acc.data.as_slice()).unwrap()
-}
-
-pub fn load_treasury() -> Keypair {
-    let kp = load_keypair(&(std::env::var("HOME").unwrap() + "/.config/solana/id.json"));
-    assert_eq!(kp.pubkey(), TREASURY, "CLI wallet must match TREASURY");
-    kp
-}
-
-pub fn record_progress_ix(verifier: &Pubkey, challenge: &Pubkey, user: &Pubkey, day_index: u8) -> Instruction {
+pub fn record_day_ix(user: &Pubkey, day: u16, hash: [u8; 32]) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::RecordProgress { day_index }.data(),
-        coldshell::accounts::RecordProgress {
-            oracle: *verifier,
-            challenge: *challenge,
-            participant: participant_pda(challenge, user),
-        }
-        .to_account_metas(None),
+        &coldshell::instruction::RecordDay { day, hash }.data(),
+        coldshell::accounts::RecordDay { user: *user, run: run_pda(user) }.to_account_metas(None),
     )
 }
 
-pub fn challenge_at(svm: &LiteSVM, challenge: &Pubkey) -> Challenge {
-    let acc = svm.get_account(challenge).unwrap();
-    Challenge::try_deserialize(&mut acc.data.as_slice()).unwrap()
-}
-
-/// Marks every day of the challenge as passed, moving the clock into each day first.
-/// Leaves the clock at the end of the challenge.
-pub fn complete_all_days(env: &mut Env, challenge: &Pubkey, user: &Pubkey, track: u8) {
-    let config = track_config(track).unwrap();
-    let state = challenge_at(&env.svm, challenge);
-    let verifier = env.verifier.insecure_clone();
-    for day in 0..config.days {
-        set_time(&mut env.svm, state.start_ts + i64::from(day) * config.day_seconds + 1);
-        let ix = record_progress_ix(&verifier.pubkey(), challenge, user, day);
-        send(&mut env.svm, ix, &[&verifier]).unwrap();
-    }
-    set_time(&mut env.svm, state.end_ts);
-}
-
-pub fn warning_pda(challenge: &Pubkey, user: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[WARNING_SEED, challenge.as_ref(), user.as_ref()], &coldshell::id()).0
-}
-
-pub fn add_warning_ix(oracle: &Pubkey, challenge: &Pubkey, user: &Pubkey) -> Instruction {
+pub fn claim_ix(user: &Pubkey, shell: u8) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::AddWarning {}.data(),
-        coldshell::accounts::AddWarning {
-            oracle: *oracle,
-            challenge: *challenge,
-            participant: participant_pda(challenge, user),
-            warning: warning_pda(challenge, user),
-            system_program: system_program::ID,
-        }
-        .to_account_metas(None),
-    )
-}
-
-pub fn tally_ix(challenge: &Pubkey, user: &Pubkey) -> Instruction {
-    Instruction::new_with_bytes(
-        coldshell::id(),
-        &coldshell::instruction::Tally {}.data(),
-        coldshell::accounts::Tally {
-            participant: participant_pda(challenge, user),
-            challenge: *challenge,
-            warning: warning_pda(challenge, user),
-        }
-        .to_account_metas(None),
-    )
-}
-
-pub fn claim_ix(challenge: &Pubkey, user: &Pubkey) -> Instruction {
-    Instruction::new_with_bytes(
-        coldshell::id(),
-        &coldshell::instruction::Claim {}.data(),
+        &coldshell::instruction::Claim { shell }.data(),
         coldshell::accounts::Claim {
             user: *user,
-            challenge: *challenge,
-            participant: participant_pda(challenge, user),
-            warning: warning_pda(challenge, user),
+            run: run_pda(user),
             mint: USDC_MINT,
             user_token_account: ata(user),
-            vault: ata(challenge),
+            vault: vault(user),
             token_program: token::ID,
         }
         .to_account_metas(None),
     )
 }
 
-pub fn rollover_ix(from: &Pubkey, to: &Pubkey) -> Instruction {
+pub fn sweep_ix(user: &Pubkey, shell: u8) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::Rollover {}.data(),
-        coldshell::accounts::Rollover {
-            from: *from,
-            to: *to,
+        &coldshell::instruction::Sweep { shell }.data(),
+        coldshell::accounts::Sweep {
+            run: run_pda(user),
             mint: USDC_MINT,
-            from_vault: ata(from),
-            to_vault: ata(to),
+            treasury_token_account: treasury_ata(),
+            vault: vault(user),
             token_program: token::ID,
         }
         .to_account_metas(None),
     )
 }
 
-pub fn withdraw_fees_ix(treasury: &Pubkey, challenge: &Pubkey) -> Instruction {
+pub fn close_ix(authority: &Pubkey, user: &Pubkey) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::WithdrawFees {}.data(),
-        coldshell::accounts::WithdrawFees {
-            treasury: *treasury,
-            challenge: *challenge,
+        &coldshell::instruction::Close {}.data(),
+        coldshell::accounts::Close {
+            authority: *authority,
+            rent_destination: TREASURY,
+            run: run_pda(user),
             mint: USDC_MINT,
-            vault: ata(challenge),
-            treasury_token_account: ata(treasury),
+            treasury_token_account: treasury_ata(),
+            vault: vault(user),
             token_program: token::ID,
         }
         .to_account_metas(None),
     )
+}
+
+// ── Shorthands ───────────────────────────────────────────────────────────────
+
+pub fn enter(env: &mut Env, user: &Keypair, shells: u8, stake: u64) -> Result<(), String> {
+    let ix = enter_ix(&user.pubkey(), &env.payer.pubkey(), shells, stake);
+    let payer = env.payer.insecure_clone();
+    send(&mut env.svm, ix, &[&payer, user])
+}
+
+pub fn record(env: &mut Env, user: &Keypair, day: u16) -> Result<(), String> {
+    let ix = record_day_ix(&user.pubkey(), day, [7u8; 32]);
+    let payer = env.payer.insecure_clone();
+    send(&mut env.svm, ix, &[&payer, user])
+}
+
+pub fn claim(env: &mut Env, user: &Keypair, shell: u8) -> Result<(), String> {
+    let ix = claim_ix(&user.pubkey(), shell);
+    let payer = env.payer.insecure_clone();
+    send(&mut env.svm, ix, &[&payer, user])
+}
+
+pub fn sweep(env: &mut Env, user: &Pubkey, shell: u8) -> Result<(), String> {
+    let ix = sweep_ix(user, shell);
+    let payer = env.payer.insecure_clone();
+    send(&mut env.svm, ix, &[&payer])
+}
+
+/// Steps the clock into each of the given days and records it. Leaves the clock where it ended.
+pub fn record_days(env: &mut Env, user: &Keypair, first_shell: u32, days: &[u16]) {
+    for &day in days {
+        set_time(&mut env.svm, day_start(first_shell, day) + 1);
+        record(env, user, day).unwrap();
+    }
 }

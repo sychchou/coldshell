@@ -1,9 +1,9 @@
+use anchor_lang::prelude::*;
+
 pub mod constants;
 pub mod error;
 pub mod instructions;
 pub mod state;
-
-use anchor_lang::prelude::*;
 
 pub use constants::*;
 pub use instructions::*;
@@ -11,48 +11,32 @@ pub use state::*;
 
 declare_id!("GLt8XkwvvViMEy5x9xXRMXMdi6Lq96bT2xknRbqottud");
 
+/// coldshell — stake on a run of weeks, record a minute a day, get each finished week back whole.
+///
+/// The program never judges a recording. It holds the money, timestamps what the participant
+/// says they did, and refunds week by week; the day's hash travels in the instruction data, so
+/// the ledger carries a commitment nobody can backdate.
 #[program]
 pub mod coldshell {
     use super::*;
 
-    /// Pays `entry_fee × multiply` into the challenge vault and joins the pool.
-    pub fn register(
-        ctx: Context<Register>,
-        track: u8,
-        challenge_id: u64,
-        discord_id: u64,
-        multiply: u8,
-    ) -> Result<()> {
-        crate::instructions::register::handle_register(ctx, track, challenge_id, discord_id, multiply)
+    pub fn enter(ctx: Context<Enter>, shells: u8, stake: u64) -> Result<()> {
+        instructions::enter::handle_enter(ctx, shells, stake)
     }
 
-    /// Marks one day as passed for a participant.
-    pub fn record_progress(ctx: Context<RecordProgress>, day_index: u8) -> Result<()> {
-        crate::instructions::record_progress::handle_record_progress(ctx, day_index)
+    pub fn record_day(ctx: Context<RecordDay>, day: u16, hash: [u8; 32]) -> Result<()> {
+        instructions::record_day::handle_record_day(ctx, day, hash)
     }
 
-    /// Gives a participant a warning; 3 warnings and they are out.
-    pub fn add_warning(ctx: Context<AddWarning>) -> Result<()> {
-        crate::instructions::add_warning::handle_add_warning(ctx)
+    pub fn claim(ctx: Context<Claim>, shell: u8) -> Result<()> {
+        instructions::claim::handle_claim(ctx, shell)
     }
 
-    /// Counts one participant after the challenge ends; the last one finalizes it.
-    pub fn tally(ctx: Context<Tally>) -> Result<()> {
-        crate::instructions::tally::handle_tally(ctx)
+    pub fn sweep(ctx: Context<Sweep>, shell: u8) -> Result<()> {
+        instructions::sweep::handle_sweep(ctx, shell)
     }
 
-    /// A winner withdraws their share of the prize pool.
-    pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        crate::instructions::claim::handle_claim(ctx)
-    }
-
-    /// Moves the prize pool of a challenge nobody won into a later one.
-    pub fn rollover(ctx: Context<Rollover>) -> Result<()> {
-        crate::instructions::rollover::handle_rollover(ctx)
-    }
-
-    /// Sends the platform fee and rounding dust to the treasury.
-    pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
-        crate::instructions::withdraw_fees::handle_withdraw_fees(ctx)
+    pub fn close(ctx: Context<Close>) -> Result<()> {
+        instructions::close::handle_close(ctx)
     }
 }

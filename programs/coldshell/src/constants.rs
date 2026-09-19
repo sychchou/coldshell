@@ -1,10 +1,6 @@
 use anchor_lang::prelude::*;
 
-/// Server key: co-signs `register` after verifying the Discord account, and records daily progress.
-#[constant]
-pub const VERIFIER: Pubkey = pubkey!("HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP");
-
-/// Receives the platform fee and leftover rounding dust.
+/// Receives forfeited stakes, and the rent back when a run is closed.
 #[constant]
 pub const TREASURY: Pubkey = pubkey!("Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf");
 
@@ -12,161 +8,74 @@ pub const TREASURY: Pubkey = pubkey!("Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQM
 #[constant]
 pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
+/// One run per wallet at a time; closing it frees the seed for the next one.
 #[constant]
-pub const CHALLENGE_SEED: &[u8] = b"challenge";
+pub const RUN_SEED: &[u8] = b"run";
 
+/// Shells are 1 to 10 weeks, so ten bits of `settled` and seventy of `days`.
 #[constant]
-pub const PARTICIPANT_SEED: &[u8] = b"participant";
+pub const MAX_SHELLS: u8 = 10;
 
+/// $10, in USDC base units. Below this nothing is really at stake.
 #[constant]
-pub const DISCORD_SEED: &[u8] = b"discord";
+pub const MIN_STAKE: u64 = 10_000_000;
 
-/// One participation lock per wallet and one per Discord account, shared by every track.
+/// $200. The ceiling protects people from themselves, not the platform from them.
 #[constant]
-pub const WALLET_LOCK_SEED: &[u8] = b"wallet_lock";
+pub const MAX_STAKE: u64 = 200_000_000;
 
-#[constant]
-pub const DISCORD_LOCK_SEED: &[u8] = b"discord_lock";
+// ── The clock ────────────────────────────────────────────────────────────────
+// `short-clock` divides every duration by 144, so a day is ten minutes and a week seventy.
+// A whole run can then be walked through in an hour. The app reads these out of the IDL, so
+// the screen and the chain can never disagree about how long a day is.
 
-#[constant]
-pub const WARNING_SEED: &[u8] = b"warning";
-
-/// A participant with this many warnings in a challenge is out.
-#[constant]
-pub const MAX_WARNINGS: u8 = 3;
-
-#[constant]
-pub const MAX_MULTIPLY: u8 = 10;
-
-/// Platform + exchange fee, in basis points of the entry pool.
-#[constant]
-pub const FEE_BPS: u64 = 500;
-
-/// Passed days can still be recorded for this long after a challenge ends (e.g. after a server
-/// outage). Results are tallied only once this window closes.
-#[constant]
-pub const RECORD_WINDOW_SECONDS: i64 = 12 * 60 * 60;
-
-/// The test track settles quickly, so its window is two of its 2-minute days.
-#[constant]
-pub const TEST_RECORD_WINDOW_SECONDS: i64 = 2 * TEST_DAY_SECONDS;
-
-/// Winners have 4 weeks after a challenge ends to claim; what is left then goes to the treasury.
-#[constant]
-pub const CLAIM_WINDOW_SECONDS: i64 = 28 * 24 * 60 * 60;
-
-/// Rewards are rounded down to 0.01 USDC.
-#[constant]
-pub const PAYOUT_UNIT: u64 = 10_000;
-
-#[constant]
-pub const TRACK_WEEKLY: u8 = 0;
-
-/// Opens every other week and runs for two weeks.
-#[constant]
-pub const TRACK_BIWEEKLY: u8 = 1;
-
-/// Short track for testing the full cycle without waiting a week.
-#[constant]
-pub const TRACK_TEST: u8 = 2;
-
-/// Weekly Challenge #0 starts Monday 2026-09-21 00:00 UTC; #n starts n weeks later.
-#[constant]
-pub const WEEKLY_LAUNCH_TS: i64 = 1_789_948_800;
-
-#[constant]
-pub const WEEK_SECONDS: i64 = 7 * 24 * 60 * 60;
-
-#[constant]
-pub const WEEKLY_DAY_SECONDS: i64 = 24 * 60 * 60;
-
-#[constant]
-pub const WEEKLY_DAYS: u8 = 7;
-
-/// 7 USDC (6 decimals) per 1x.
-#[constant]
-pub const WEEKLY_ENTRY_FEE: u64 = 7_000_000;
-
-/// Placeholder until the first Biweekly date is decided: Monday 2026-10-05 00:00 UTC.
-/// Registration stays closed until then (the server only co-signs the Weekly track).
-#[constant]
-pub const BIWEEKLY_LAUNCH_TS: i64 = WEEKLY_LAUNCH_TS + 2 * WEEK_SECONDS;
-
-#[constant]
-pub const BIWEEKLY_DURATION: i64 = 2 * WEEK_SECONDS;
-
-#[constant]
-pub const BIWEEKLY_DAY_SECONDS: i64 = 24 * 60 * 60;
-
-#[constant]
-pub const BIWEEKLY_DAYS: u8 = 14;
-
-/// 10 USDC (6 decimals) per 1x.
-#[constant]
-pub const BIWEEKLY_ENTRY_FEE: u64 = 10_000_000;
-
-/// Test challenges run every 10 minutes, with five 2-minute "days".
-#[constant]
-pub const TEST_LAUNCH_TS: i64 = 0;
-
-#[constant]
-pub const TEST_DURATION: i64 = 10 * 60;
-
-#[constant]
-pub const TEST_DAY_SECONDS: i64 = 2 * 60;
-
-#[constant]
-pub const TEST_DAYS: u8 = 5;
-
-#[constant]
-pub const TEST_ENTRY_FEE: u64 = 1_000_000;
-
-/// Everything that differs between tracks.
-pub struct TrackConfig {
-    /// Challenge #0 starts here; #n starts n durations later.
-    pub launch_ts: i64,
-    pub duration: i64,
-    pub day_seconds: i64,
-    pub days: u8,
-    /// How long after the end passed days can still be recorded.
-    pub record_window: i64,
-    /// Per 1x, in mint base units.
-    pub entry_fee: u64,
+#[cfg(not(feature = "short-clock"))]
+mod clock {
+    /// Shell #1 begins Monday 2026-09-14 00:00 UTC.
+    pub const SHELL_EPOCH_TS: i64 = 1_789_344_000;
+    pub const DAY_SECONDS: i64 = 24 * 60 * 60;
+    /// A day may be recorded this long before it starts: the screen counts days in the
+    /// participant's local time, and the chain only knows UTC.
+    pub const RECORD_EARLY_SECONDS: i64 = 14 * 60 * 60;
+    /// And this long after, which is a deliberate day of grace for catching one up.
+    pub const RECORD_LATE_SECONDS: i64 = 48 * 60 * 60;
+    /// A finished week can be claimed for four weeks. After that the platform may sweep it.
+    pub const CLAIM_WINDOW_SECONDS: i64 = 28 * 24 * 60 * 60;
 }
 
-impl TrackConfig {
-    /// Bitmask with one bit per day: every bit set means the participant passed the challenge.
-    pub const fn full_mask(&self) -> u16 {
-        (1u16 << self.days) - 1
-    }
+#[cfg(feature = "short-clock")]
+mod clock {
+    /// Saturday 2026-09-19 00:00 UTC, so test shell numbers stay small.
+    pub const SHELL_EPOCH_TS: i64 = 1_789_776_000;
+    pub const DAY_SECONDS: i64 = 10 * 60;
+    pub const RECORD_EARLY_SECONDS: i64 = 350;
+    pub const RECORD_LATE_SECONDS: i64 = 20 * 60;
+    pub const CLAIM_WINDOW_SECONDS: i64 = 4 * 60 * 60 + 40 * 60;
 }
 
-pub const fn track_config(track: u8) -> Option<TrackConfig> {
-    match track {
-        TRACK_WEEKLY => Some(TrackConfig {
-            launch_ts: WEEKLY_LAUNCH_TS,
-            duration: WEEK_SECONDS,
-            day_seconds: WEEKLY_DAY_SECONDS,
-            days: WEEKLY_DAYS,
-            record_window: RECORD_WINDOW_SECONDS,
-            entry_fee: WEEKLY_ENTRY_FEE,
-        }),
-        TRACK_BIWEEKLY => Some(TrackConfig {
-            launch_ts: BIWEEKLY_LAUNCH_TS,
-            duration: BIWEEKLY_DURATION,
-            day_seconds: BIWEEKLY_DAY_SECONDS,
-            days: BIWEEKLY_DAYS,
-            record_window: RECORD_WINDOW_SECONDS,
-            entry_fee: BIWEEKLY_ENTRY_FEE,
-        }),
-        TRACK_TEST => Some(TrackConfig {
-            launch_ts: TEST_LAUNCH_TS,
-            duration: TEST_DURATION,
-            day_seconds: TEST_DAY_SECONDS,
-            days: TEST_DAYS,
-            record_window: TEST_RECORD_WINDOW_SECONDS,
-            entry_fee: TEST_ENTRY_FEE,
-        }),
-        _ => None,
-    }
-}
+#[constant]
+pub const SHELL_EPOCH_TS: i64 = clock::SHELL_EPOCH_TS;
+
+#[constant]
+pub const DAY_SECONDS: i64 = clock::DAY_SECONDS;
+
+#[constant]
+pub const DAYS_PER_SHELL: u16 = 7;
+
+#[constant]
+pub const WEEK_SECONDS: i64 = DAY_SECONDS * DAYS_PER_SHELL as i64;
+
+#[constant]
+pub const RECORD_EARLY_SECONDS: i64 = clock::RECORD_EARLY_SECONDS;
+
+#[constant]
+pub const RECORD_LATE_SECONDS: i64 = clock::RECORD_LATE_SECONDS;
+
+#[constant]
+pub const CLAIM_WINDOW_SECONDS: i64 = clock::CLAIM_WINDOW_SECONDS;
+
+/// How long after a shell begins you can still join it. Shells always start on a Monday, so a
+/// run paid for midweek waits for the next one; Monday itself still counts, which is where the
+/// "at most six days of waiting" comes from.
+#[constant]
+pub const START_GRACE_SECONDS: i64 = DAY_SECONDS;
