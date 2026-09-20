@@ -31,8 +31,10 @@ pub const MAX_STAKE: u64 = 200_000_000;
 
 #[cfg(not(feature = "short-clock"))]
 mod clock {
-    /// Shell #1 begins Monday 2026-09-14 00:00 UTC.
-    pub const SHELL_EPOCH_TS: i64 = 1_789_344_000;
+    /// Shell #0 begins Monday 2026-09-21 00:00 UTC — the first week anybody ran. Shells are
+    /// counted from zero because the number is a global index, not a ranking, and a scheme whose
+    /// first week is #1 has to answer what week #0 was.
+    pub const SHELL_EPOCH_TS: i64 = 1_789_948_800;
     pub const DAY_SECONDS: i64 = 24 * 60 * 60;
     /// A day may be recorded this long before it starts: the screen counts days in the
     /// participant's local time, and the chain only knows UTC.

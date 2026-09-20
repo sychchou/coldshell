@@ -29,11 +29,11 @@ export function Detail({
     )
   }
 
-  if (shell < 1) {
+  if (shell < 0) {
     return (
       <aside className="detail">
         <h2>shell {shell}</h2>
-        <p className="detail-empty">before shell #1</p>
+        <p className="detail-empty">before shell #0</p>
       </aside>
     )
   }

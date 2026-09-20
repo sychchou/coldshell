@@ -129,11 +129,11 @@ pub fn new_user(svm: &mut LiteSVM, usdc: u64) -> Keypair {
 // ── The clock, mirrored so a test reads next to the handler ──────────────────
 
 pub fn shell_start(index: u32) -> i64 {
-    SHELL_EPOCH_TS + i64::from(index - 1) * WEEK_SECONDS
+    SHELL_EPOCH_TS + i64::from(index) * WEEK_SECONDS
 }
 
 pub fn current_shell(now: i64) -> u32 {
-    u32::try_from((now - SHELL_EPOCH_TS) / WEEK_SECONDS + 1).unwrap()
+    u32::try_from((now - SHELL_EPOCH_TS) / WEEK_SECONDS).unwrap()
 }
 
 pub fn day_start(first_shell: u32, day: u16) -> i64 {

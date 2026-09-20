@@ -14,7 +14,7 @@ import { DAYS_PER_SHELL, DAY_MS, SHELL_EPOCH_MS, SHORT_CLOCK, WEEK_MS } from '..
 
 const REAL_DAY = 86_400_000
 
-/** The Monday shell #1 begins on, read off the program's epoch and rebuilt in local time. */
+/** The Monday shell #0 begins on, read off the program's epoch and rebuilt in local time. */
 export const SHELL_EPOCH = (() => {
   const utc = new Date(SHELL_EPOCH_MS)
   return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate())
@@ -37,7 +37,7 @@ function mondayOf(ts: number) {
 }
 
 export type Today = {
-  /** 1-based; 0 or less means shell #1 has not started yet. */
+  /** Counted from zero; below zero means shell #0 has not started yet. */
   shell: number
   /** 1-based day within this shell's week. */
   dayOfShell: number
@@ -56,7 +56,7 @@ export function today(now = Date.now()): Today {
     const day = Math.floor((now - SHELL_EPOCH_MS) / DAY_MS)
     const dayOfShell = ((day % DAYS_PER_SHELL) + DAYS_PER_SHELL) % DAYS_PER_SHELL
     return {
-      shell: Math.floor(day / DAYS_PER_SHELL) + 1,
+      shell: Math.floor(day / DAYS_PER_SHELL),
       dayOfShell: dayOfShell + 1,
       date,
       weekday: WEEKDAYS[dayOfShell],
@@ -64,7 +64,7 @@ export function today(now = Date.now()): Today {
   }
 
   const monday = mondayOf(now)
-  const shell = Math.floor(daysBetween(midnight(SHELL_EPOCH), monday) / DAYS_PER_SHELL) + 1
+  const shell = Math.floor(daysBetween(midnight(SHELL_EPOCH), monday) / DAYS_PER_SHELL)
   const dayOfShell = daysBetween(monday, midnight(d)) + 1
   return { shell, dayOfShell, date, weekday: WEEKDAYS[dayOfShell - 1] }
 }
@@ -80,16 +80,16 @@ export function untilNextDay(now = Date.now()) {
  * since seventy-minute weeks have no monday to land on.
  */
 export function mondayOfShell(index: number) {
-  if (SHORT_CLOCK) return new Date(SHELL_EPOCH_MS + (index - 1) * WEEK_MS)
+  if (SHORT_CLOCK) return new Date(SHELL_EPOCH_MS + index * WEEK_MS)
   const d = new Date(SHELL_EPOCH)
-  d.setDate(d.getDate() + (index - 1) * DAYS_PER_SHELL)
+  d.setDate(d.getDate() + index * DAYS_PER_SHELL)
   return d
 }
 
 /** The shell a moment belongs to, by the week it falls in. */
 export function shellOf(ts: number) {
-  if (SHORT_CLOCK) return Math.floor((ts - SHELL_EPOCH_MS) / WEEK_MS) + 1
-  return Math.floor(daysBetween(midnight(SHELL_EPOCH), mondayOf(ts)) / DAYS_PER_SHELL) + 1
+  if (SHORT_CLOCK) return Math.floor((ts - SHELL_EPOCH_MS) / WEEK_MS)
+  return Math.floor(daysBetween(midnight(SHELL_EPOCH), mondayOf(ts)) / DAYS_PER_SHELL)
 }
 
 /**
@@ -98,7 +98,8 @@ export function shellOf(ts: number) {
  * the program applies, and it is the program's answer that counts.
  */
 export function startingShell(now = Date.now()) {
-  return today(now).shell + 1
+  // Before the first shell there is no week under way, so the first one is what you buy.
+  return Math.max(0, today(now).shell + 1)
 }
 
 /**

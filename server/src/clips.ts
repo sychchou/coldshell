@@ -43,7 +43,7 @@ export type Note = {
  */
 function stem(wallet: string, shell: number, day: number, sha256?: string) {
   if (!WALLET.test(wallet)) throw new ClipError('bad wallet')
-  if (!Number.isInteger(shell) || shell < 1) throw new ClipError('bad shell')
+  if (!Number.isInteger(shell) || shell < 0) throw new ClipError('bad shell')
   if (!Number.isInteger(day) || day < 1 || day > 70) throw new ClipError('bad day')
   const of = `${wallet}/${shell}-${String(day).padStart(2, '0')}`
   if (!sha256) return of

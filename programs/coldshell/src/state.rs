@@ -35,8 +35,7 @@ impl Run {
             .checked_add(i64::from(offset))
             .ok_or(ErrorCode::MathOverflow)?;
         index
-            .checked_sub(1)
-            .and_then(|weeks| weeks.checked_mul(WEEK_SECONDS))
+            .checked_mul(WEEK_SECONDS)
             .and_then(|elapsed| elapsed.checked_add(SHELL_EPOCH_TS))
             .ok_or(ErrorCode::MathOverflow.into())
     }
@@ -109,13 +108,14 @@ impl Run {
     }
 }
 
-/// The shell a moment falls in. Shell numbers are global: everyone in the same week shares one.
+/// The shell a moment falls in, counted from zero. Shell numbers are global: everyone in the
+/// same week shares one.
 pub fn current_shell(now: i64) -> Result<u32> {
     let elapsed = now
         .checked_sub(SHELL_EPOCH_TS)
         .ok_or(ErrorCode::MathOverflow)?;
     require!(elapsed >= 0, ErrorCode::MathOverflow);
-    u32::try_from(elapsed / WEEK_SECONDS + 1).map_err(|_| ErrorCode::MathOverflow.into())
+    u32::try_from(elapsed / WEEK_SECONDS).map_err(|_| ErrorCode::MathOverflow.into())
 }
 
 /// The shell a run paid for at `now` begins in: always the next one.
@@ -124,7 +124,14 @@ pub fn current_shell(now: i64) -> Result<u32> {
 /// sell them a week they had already lost part of, and the screen would then have to explain why
 /// the shell it just called running is also the shell being bought. Pay any time up to Sunday
 /// midnight and the run starts on Monday.
+///
+/// Before the first shell has begun there is no week under way, so a run paid for then starts at
+/// the first one. Otherwise the program would refuse everybody until the epoch passed, for no
+/// reason anybody could be told.
 pub fn starting_shell(now: i64) -> Result<u32> {
+    if now < SHELL_EPOCH_TS {
+        return Ok(0);
+    }
     current_shell(now)?
         .checked_add(1)
         .ok_or(ErrorCode::MathOverflow.into())

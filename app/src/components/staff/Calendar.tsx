@@ -13,7 +13,7 @@ const HEADS = SHORT_CLOCK
 type Mark = 'empty' | 'done' | 'open' | 'missed' | 'ahead'
 
 function markOf(cell: Cell, runs: Run[], focus: Run | null, now: number): { mark: Mark; note: string } {
-  if (cell.ms > now && cell.shell > 0) {
+  if (cell.ms > now && cell.shell >= 0) {
     const covering = focus ? (focusMarks(focus, cell.shell, now) ? 1 : 0) : dayCount(runs, cell, now).runs
     return { mark: covering ? 'ahead' : 'empty', note: '' }
   }
@@ -85,7 +85,7 @@ export function Calendar({
               aria-pressed={selected === row.shell}
               onClick={() => onSelect(row.shell)}
             >
-              <b>{row.shell > 0 ? `#${row.shell}` : '—'}</b>
+              <b>{row.shell >= 0 ? `#${row.shell}` : '—'}</b>
               <small>{(focus ? mine !== null : totals.runs > 0) ? `${done}/${expected}` : ''}</small>
             </button>
 

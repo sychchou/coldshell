@@ -83,10 +83,10 @@ export async function fetchRun(connection: Connection, user: PublicKey): Promise
 
 // ── The clock, as the program keeps it ──────────────────────────────────────
 
-/** Shell numbers are global and 1-based: shell #1 is the week the epoch starts. */
-export const currentShell = (now: number) => Math.floor((now - SHELL_EPOCH_MS) / WEEK_MS) + 1
+/** Shell numbers are global and counted from zero: shell #0 is the week the epoch starts. */
+export const currentShell = (now: number) => Math.floor((now - SHELL_EPOCH_MS) / WEEK_MS)
 
-export const shellStart = (index: number) => SHELL_EPOCH_MS + (index - 1) * WEEK_MS
+export const shellStart = (index: number) => SHELL_EPOCH_MS + index * WEEK_MS
 export const shellEnd = (index: number) => shellStart(index) + WEEK_MS
 
 /**

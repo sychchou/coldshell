@@ -126,10 +126,13 @@ fn entering_without_the_money_leaves_nothing_behind() {
     assert!(env.svm.get_account(&vault(&user.pubkey())).is_none());
 }
 
+/// Before the first shell begins there is no week under way, so a run paid for then starts at
+/// the first one rather than being refused for a reason nobody could be told.
 #[test]
-fn a_run_cannot_start_before_the_first_shell() {
+fn a_run_paid_for_before_the_first_shell_starts_at_it() {
     let mut env = setup(SHELL_EPOCH_TS - 1);
     let user = new_user(&mut env.svm, 50 * USDC);
-    assert!(enter(&mut env, &user, 1, 10 * USDC).is_err());
+    enter(&mut env, &user, 1, 10 * USDC).unwrap();
+    assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, 0);
     let _: Pubkey = run_pda(&user.pubkey());
 }

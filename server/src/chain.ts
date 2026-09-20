@@ -85,12 +85,12 @@ export const vaultAta = (user: PublicKey) => usdcAta(runPda(user))
 export const nowSeconds = () => Math.floor(Date.now() / 1000)
 
 export const currentShell = (now = nowSeconds()) =>
-  Math.floor((now - SHELL_EPOCH_TS) / WEEK_SECONDS) + 1
+  Math.floor((now - SHELL_EPOCH_TS) / WEEK_SECONDS)
 
 /** Where a run paid for at `now` would begin: always the next shell. */
-export const startingShell = (now = nowSeconds()) => currentShell(now) + 1
+export const startingShell = (now = nowSeconds()) => Math.max(0, currentShell(now) + 1)
 
-export const shellStart = (index: number) => SHELL_EPOCH_TS + (index - 1) * WEEK_SECONDS
+export const shellStart = (index: number) => SHELL_EPOCH_TS + index * WEEK_SECONDS
 
 // ── The run account, read by hand ───────────────────────────────────────────
 
