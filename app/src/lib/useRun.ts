@@ -19,6 +19,11 @@ export type RunView = {
   done: number
   /** One mark per day of the run, in order. */
   marks: DayMark[]
+  /**
+   * Days that can still be recorded, earliest first. The window runs two days, so yesterday is
+   * usually in here beside today — and a minute meant for yesterday has to be able to say so.
+   */
+  open: number[]
   /** Shells that can be collected right now, newest last. */
   claimable: number[]
   state: (offset: number) => ShellState
@@ -95,6 +100,7 @@ export function useRun(): RunView {
     day,
     done,
     marks,
+    open: marks.flatMap((mark, i) => (mark === 'open' ? [i] : [])),
     claimable,
     state: (offset: number) => shellState(run!, offset, now),
   }

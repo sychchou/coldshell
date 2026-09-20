@@ -19,9 +19,11 @@ type Stage =
   // `error` rides along with the clip rather than replacing it — losing a recording because a
   // wallet was locked would be the cruellest possible way to lose a day.
   | { kind: 'done'; clip: Recording; stored?: Sealed; error?: string }
+  /** Two days are open at once and the clip has to say which one it is for. */
+  | { kind: 'which'; clip: Recording; stored?: Sealed }
   | { kind: 'sealing'; clip: Recording; done: number }
   | { kind: 'marking'; clip: Recording; stored: Sealed }
-  | { kind: 'sealed'; clip: Recording; stored: Sealed; signature: string }
+  | { kind: 'sealed'; clip: Recording; stored: Sealed; signature: string; forDay: number }
   /** The camera itself would not open. Nothing was recorded, so there is nothing to keep. */
   | { kind: 'error'; message: string }
 
@@ -102,21 +104,26 @@ export function RecordPane({
   }, [])
   const now = today()
   void tick
-  const { run, day, marks, claimable } = view
+  const { run, day, marks, open: openDays, claimable } = view
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
   const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
-  // Today's minute is already on the ledger, so there is nothing left to send for it.
-  const sealedToday = day !== null && marks[day] === 'done'
-  // The shell the day being recorded belongs to — derived from the run, as the program derives it,
-  // so the clip and the instruction cannot disagree about which week this is.
-  const shell = run && day !== null ? run.firstShell + Math.floor(day / DAYS_PER_SHELL) : now.shell
+  // The shell a day belongs to — derived from the run, as the program derives it, so the clip
+  // and the instruction cannot disagree about which week this is.
+  const shellOf = (index: number) =>
+    run ? run.firstShell + Math.floor(index / DAYS_PER_SHELL) : now.shell
+  const shell = shellOf(day ?? 0)
 
   /**
    * Two steps, in this order. The clip goes up first because the chain records its hash: marking
    * a day whose recording never arrived would put a promise on the ledger with nothing behind it.
    */
-  const sealClip = async (clip: Recording, already?: Sealed) => {
-    if (!publicKey || !signTransaction || day === null) return
+  /**
+   * `forDay` is the day of the run this minute belongs to — not always today. A day stays open
+   * for two, so somebody catching up on yesterday is recording a real thing about yesterday, and
+   * filing it under today would be a small lie in the one place that cannot hold one.
+   */
+  const sealClip = async (clip: Recording, already: Sealed | undefined, forDay: number) => {
+    if (!publicKey || !signTransaction) return
     const wallet = publicKey.toBase58()
     let stored = already
     try {
@@ -124,17 +131,17 @@ export function RecordPane({
         setStage({ kind: 'sealing', clip, done: 0 })
         stored = await seal(
           clip.blob,
-          { wallet, shell, day: day + 1, sha256: clip.sha256 },
+          { wallet, shell: shellOf(forDay), day: forDay + 1, sha256: clip.sha256 },
           (fraction) => setStage({ kind: 'sealing', clip, done: fraction }),
         )
         release()
       }
       setStage({ kind: 'marking', clip, stored })
-      const prepared = await recordDayTx(wallet, day, stored.sha256)
+      const prepared = await recordDayTx(wallet, forDay, stored.sha256)
       const signature = await sendPrepared(connection, signTransaction, prepared)
       // The hash is permanent in the instruction data, but only findable through its signature.
-      await noteSignature(wallet, prepared.shell, day + 1, signature).catch(() => {})
-      setStage({ kind: 'sealed', clip, stored, signature })
+      await noteSignature(wallet, prepared.shell, forDay + 1, signature).catch(() => {})
+      setStage({ kind: 'sealed', clip, stored, signature, forDay })
       await view.refresh()
     } catch (err) {
       // Back to where the clip still exists, carrying whatever already reached the server.
@@ -259,27 +266,45 @@ export function RecordPane({
                   ]
                 : stage.kind === 'sealing'
                   ? [{ key: 'sealing', label: `sealing… ${Math.round(stage.done * 100)}%`, disabled: true }]
-                  : stage.kind === 'marking'
-                    ? [{ key: 'marking', label: 'signing…', disabled: true }]
-                    : stage.kind === 'sealed'
-                      ? sealedToday
-                        ? []
-                        : [{ key: 'again', label: 'record again', onClick: start }]
-                      : stage.kind === 'done'
-                        ? [
-                            { key: 'again', label: 'record again', onClick: start },
-                            {
-                              key: 'seal',
-                              // A clip that already reached the server only needs the signature.
-                              label: stage.stored ? 'sign again' : stage.error ? 'seal again' : 'seal',
-                              tone: 'yes' as const,
-                              // Sealing sends the clip away and marks the day, so it needs both a
-                              // wallet and a day of a run to mark.
-                              onClick: () => sealClip(stage.clip, stage.stored),
-                              disabled: !publicKey || day === null || sealedToday,
-                            },
-                          ]
-                        : []),
+                  : stage.kind === 'which'
+                    ? [
+                        {
+                          key: 'y',
+                          label: 'y',
+                          tone: 'yes' as const,
+                          onClick: () => sealClip(stage.clip, stage.stored, openDays[0]!),
+                        },
+                        {
+                          key: 'n',
+                          label: 'n',
+                          tone: 'no' as const,
+                          onClick: () => sealClip(stage.clip, stage.stored, openDays[openDays.length - 1]!),
+                        },
+                      ]
+                    : stage.kind === 'marking'
+                      ? [{ key: 'marking', label: 'signing…', disabled: true }]
+                        : stage.kind === 'sealed'
+                          ? openDays.length > 0
+                            ? [{ key: 'again', label: 'record again', onClick: start }]
+                            : []
+                          : stage.kind === 'done'
+                            ? [
+                                { key: 'again', label: 'record again', onClick: start },
+                                {
+                                  key: 'seal',
+                                  // A clip that already reached the server only needs the signature.
+                                  label: stage.stored ? 'sign again' : stage.error ? 'seal again' : 'seal',
+                                  tone: 'yes' as const,
+                                  // With two days open the clip has to say which one it is for;
+                                  // with one there is nothing to ask.
+                                  onClick: () =>
+                                    openDays.length > 1
+                                      ? setStage({ kind: 'which', clip: stage.clip, stored: stage.stored })
+                                      : sealClip(stage.clip, stage.stored, openDays[0]!),
+                                  disabled: !publicKey || openDays.length === 0,
+                                },
+                              ]
+                            : []),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
         // A finished week is worth collecting whatever else is on screen, so claim is not tucked
@@ -296,7 +321,7 @@ export function RecordPane({
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, sealedToday, claimable.join(), claiming],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), claimable.join(), claiming],
     active,
   )
 
@@ -399,6 +424,7 @@ export function RecordPane({
       )}
 
       {(stage.kind === 'done' ||
+        stage.kind === 'which' ||
         stage.kind === 'sealing' ||
         stage.kind === 'marking' ||
         stage.kind === 'sealed') && (
@@ -414,10 +440,22 @@ export function RecordPane({
           </dl>
           {stage.kind === 'done' && !stage.error && !stage.stored && (
             <p className="term-line term-dim">
-              {sealedToday
-                ? `day ${(day ?? 0) + 1} is already on chain. one minute a day is all it takes.`
+              {openDays.length === 0
+                ? 'every day within reach is already on chain. one minute a day is all it takes.'
                 : 'nothing has left this browser yet.'}
             </p>
+          )}
+          {stage.kind === 'which' && (
+            <>
+              <p className="term-line">
+                day {openDays[0]! + 1} is still empty and its window has not closed. is this
+                minute for day {openDays[0]! + 1}?
+              </p>
+              <p className="term-line term-dim">
+                y — file it as day {openDays[0]! + 1} · n — file it as day{' '}
+                {openDays[openDays.length - 1]! + 1}, today
+              </p>
+            </>
           )}
           {stage.kind === 'done' && stage.error && (
             <>
@@ -440,7 +478,7 @@ export function RecordPane({
           {stage.kind === 'sealed' && (
             <>
               <p className="term-line">
-                sealed. day {(day ?? 0) + 1} of shell {shell}. that is today done.
+                sealed. day {stage.forDay + 1} of shell {shellOf(stage.forDay)}.
               </p>
               <p className="term-line term-dim">
                 <a href={explorerTxUrl(stage.signature)} target="_blank" rel="noreferrer">
