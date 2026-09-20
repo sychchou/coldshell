@@ -19,17 +19,16 @@ export function PlaneIcon() {
 }
 
 /** Email. */
-/** Talking to the team, wherever that happens to be. */
-/** A repository of code. */
 export function MailIcon() {
   return (
-    <svg className="ico" viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" />
-      <path d="M2 4.5 8 9l6-4.5" fill="none" stroke="currentColor" />
+    <svg {...props} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+      <rect x="1.7" y="3.7" width="12.6" height="8.6" rx="1.4" />
+      <path d="M2.2 4.6 8 8.9l5.8-4.3" />
     </svg>
   )
 }
 
+/** A repository of code. */
 export function CodeIcon() {
   return (
     <svg {...props} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
