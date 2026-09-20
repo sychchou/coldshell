@@ -2,8 +2,9 @@
 <!--
   The square lockup: the name on two lines, tracked out so both read the same width.
 
-  Open this file and it draws the logo and offers it for download. It exists so the mark in
-  app/public is not a binary nobody can regenerate — the colours here are the site's own.
+  Open this file and it draws the logo and offers it for download; add ?theme=dark for the other
+  one. It exists so the marks in app/public are not binaries nobody can regenerate — the colours
+  here are the site's own, read off the same two tokens the page uses.
 -->
 <html lang="en">
   <head>
@@ -14,7 +15,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap" />
     <style>
       body { margin: 0; display: grid; place-items: center; gap: 20px; min-height: 100vh;
-             background: #1a1d22; font: 14px ui-monospace, monospace; color: #e7e9ed; }
+             background: #6b7280; font: 14px ui-monospace, monospace; color: #fff; }
       canvas { width: 320px; height: 320px; border-radius: 12px; }
       a { color: #7a9cff; }
     </style>
@@ -24,9 +25,14 @@
     <a id="save" download="logo.png">download logo.png</a>
     <script type="module">
       const SIZE = 1024
-      const GROUND = '#0e1013' // --bg
-      const INK = '#7a9cff'    // --command, the colour an echoed command is printed in
       const WORDS = ['cold', 'shell']
+      // The site's own two colours, in whichever theme is asked for: ?theme=dark, or light.
+      const THEMES = {
+        light: { ground: '#ffffff', ink: '#1430c4' },
+        dark: { ground: '#0e1013', ink: '#7a9cff' },
+      }
+      const theme = new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light'
+      const { ground: GROUND, ink: INK } = THEMES[theme]
 
       const canvas = document.getElementById('logo')
       const ctx = canvas.getContext('2d')
@@ -83,7 +89,11 @@
       })
 
       const url = canvas.toDataURL('image/png')
-      document.getElementById('save').href = url
+      const save = document.getElementById('save')
+      save.href = url
+      save.download = theme === 'dark' ? 'logo-dark.png' : 'logo.png'
+      save.textContent = `download ${save.download}`
+      document.title = `coldshell logo — ${theme}`
       window.LOGO = url
     </script>
   </body>
