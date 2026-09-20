@@ -1804,6 +1804,10 @@ button.nav-link:focus-visible {
   padding: 0.75em var(--pad);
   background: var(--out-bg);
   font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Hashes, signatures and mime types are single words with no space to break at, and on a
+     phone they would run off the side rather than wrap. `break-word` breaks only a word that
+     would not fit on a line of its own, so sentences still break at their spaces. */
+  overflow-wrap: break-word;
 }
 
 .term-block + .term-block,
@@ -1860,7 +1864,8 @@ button.nav-link:focus-visible {
 /* Key/value output: labels in one column, values in the next. */
 .term-rows {
   display: grid;
-  grid-template-columns: 14ch minmax(0, 1fr);
+  /* The label column gives way first on a narrow screen; the value is what has to be read. */
+  grid-template-columns: clamp(7ch, 20vw, 14ch) minmax(0, 1fr);
   gap: 0 1ch;
   margin: 0;
 }

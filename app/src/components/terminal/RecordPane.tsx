@@ -367,22 +367,25 @@ export function RecordPane({
     }
   }
 
+  // A line being written owns the bar. Otherwise `camera` sits beside it and takes the memo with
+  // it: two commands, one press, and the note gone.
+  const writing = note?.draft !== undefined
+
   useCommands(
     {
-      chips: [
-        ...(publicKey && note?.draft === undefined
+      chips: writing
+        ? [
+            {
+              key: 'keep',
+              label: note.busy ? 'keeping…' : 'keep',
+              tone: 'yes' as const,
+              onClick: () => void saveMemo(note.draft!),
+              disabled: note.busy,
+            },
+          ]
+        : [
+        ...(publicKey
           ? [{ key: 'memo', label: note?.busy ? 'reading…' : 'memo', onClick: openMemo, disabled: note?.busy }]
-          : []),
-        ...(note?.draft !== undefined
-          ? [
-              {
-                key: 'keep',
-                label: note.busy ? 'keeping…' : 'keep',
-                tone: 'yes' as const,
-                onClick: () => void saveMemo(note.draft!),
-                disabled: note.busy,
-              },
-            ]
           : []),
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
@@ -392,7 +395,7 @@ export function RecordPane({
           ? [{ key: 'film', label: reel?.busy ? 'putting it together…' : 'film', onClick: makeFilm, disabled: reel?.busy }]
           : []),
       ],
-      back: log.length > 0 ? back : undefined,
+      back: writing ? () => setNote({ ...note, draft: undefined }) : log.length > 0 ? back : undefined,
     },
     [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), empty.join(), reel, note, Boolean(signMessage), marks.join()],
     active,
