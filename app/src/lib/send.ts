@@ -1,5 +1,20 @@
 import { Connection, Transaction } from '@solana/web3.js'
 
+/**
+ * What a wallet's refusal actually means, in words somebody can act on. Extensions report their
+ * own internals — Backpack says `invariant violation: UserKeyring not found` when Chrome has
+ * culled its service worker — and a participant cannot do anything with that sentence.
+ */
+export function explain(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err)
+  if (/UserKeyring|keyring|locked|unlock/i.test(message)) {
+    return 'your wallet is locked. open it, unlock it, and try again.'
+  }
+  if (/reject|denied|cancel/i.test(message)) return 'you turned that down.'
+  if (/Failed to fetch|NetworkError/i.test(message)) return 'could not reach the server.'
+  return message
+}
+
 export class ExpiredError extends Error {
   constructor() {
     super('The transaction expired before it was approved. Approve the new one to finish.')

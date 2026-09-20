@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { DAYS_PER_SHELL, explorerTxUrl } from '../../config'
+import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS, explorerTxUrl } from '../../config'
 import { claimTx, noteSignature, recordDayTx, sendPrepared } from '../../lib/api'
 import type { DayMark, RunView } from '../../lib/useRun'
 import { QUESTIONS, questionOfTheDay } from '../../questions'
 import { ClipRecorder, CONSTRAINTS, MAX_MS, MIN_MS, clock, mb, pickMimeType, type Recording } from '../../lib/recorder'
 import { seal, type Sealed } from '../../lib/seal'
+import { explain } from '../../lib/send'
+import { shellStart } from '../../lib/runs'
 import { TEST_MODE, today } from '../../lib/shell'
 import { useCommands, useScrollOutput } from './chips'
 import { bar } from './format'
@@ -45,7 +47,6 @@ function reason(err: unknown) {
  * to know the moment they slip.
  */
 function Days({ marks }: { marks: DayMark[] }) {
-  const done = marks.filter((m) => m === 'done').length
   const missed = marks.filter((m) => m === 'missed').length
   return (
     <>
@@ -58,14 +59,21 @@ function Days({ marks }: { marks: DayMark[] }) {
             </span>
           ))}
         </span>
-        <span>
-          {' '}
-          {done}/{marks.length}
-          {missed > 0 && <span className="term-bad"> · {missed} missed</span>}
-        </span>
+        {/* The bar already says how many. Only a day lost is worth spelling out. */}
+        {missed > 0 && <span className="term-bad"> {missed} missed</span>}
       </dd>
     </>
   )
+}
+
+/** A time near enough to be a time; anything further needs its date. */
+function deadline(ms: number) {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return d.toDateString() === new Date().toDateString()
+    ? clock
+    : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${clock}`
 }
 
 /**
@@ -145,7 +153,7 @@ export function RecordPane({
       await view.refresh()
     } catch (err) {
       // Back to where the clip still exists, carrying whatever already reached the server.
-      setStage({ kind: 'done', clip, stored, error: err instanceof Error ? err.message : String(err) })
+      setStage({ kind: 'done', clip, stored, error: explain(err) })
     }
   }
 
@@ -159,7 +167,7 @@ export function RecordPane({
       setClaiming({ shell: index, signature })
       await view.refresh()
     } catch (err) {
-      setClaiming({ shell: index, error: err instanceof Error ? err.message : String(err) })
+      setClaiming({ shell: index, error: explain(err) })
     }
   }
 
@@ -246,65 +254,68 @@ export function RecordPane({
     setLog((entries) => entries.slice(0, -1))
   }
 
+  /**
+   * What the bar offers. A clip in hand comes first: sealing releases the camera, so branching on
+   * whether the camera is open used to hide `seal` at exactly the moment it was needed — a failed
+   * signature left the recording in memory with no way to send it.
+   */
+  const chips = () => {
+    switch (stage.kind) {
+      case 'which':
+        return [
+          { key: 'y', label: 'y', tone: 'yes' as const, onClick: () => sealClip(stage.clip, stage.stored, openDays[0]!) },
+          {
+            key: 'n',
+            label: 'n',
+            tone: 'no' as const,
+            onClick: () => sealClip(stage.clip, stage.stored, openDays[openDays.length - 1]!),
+          },
+        ]
+      case 'sealing':
+        return [{ key: 'sealing', label: `sealing… ${Math.round(stage.done * 100)}%`, disabled: true }]
+      case 'marking':
+        return [{ key: 'marking', label: 'signing…', disabled: true }]
+      case 'sealed':
+        return openDays.length > 0 ? [{ key: 'again', label: 'record again', onClick: start }] : []
+      case 'done':
+        return [
+          { key: 'again', label: 'record again', onClick: start },
+          {
+            key: 'seal',
+            // A clip that already reached the server only needs the signature.
+            label: stage.stored ? 'sign again' : stage.error ? 'seal again' : 'seal',
+            tone: 'yes' as const,
+            // With two days open the clip has to say which one it is for; with one there is
+            // nothing to ask.
+            onClick: () =>
+              openDays.length > 1
+                ? setStage({ kind: 'which', clip: stage.clip, stored: stage.stored })
+                : sealClip(stage.clip, stage.stored, openDays[0]!),
+            disabled: !publicKey || openDays.length === 0,
+          },
+        ]
+      case 'asking':
+        return [{ key: 'wait', label: 'waiting…', disabled: true }]
+      case 'ready':
+        return [{ key: 'start', label: 'start', onClick: start }]
+      case 'recording':
+        return [
+          {
+            key: 'stop',
+            label: longEnough ? 'stop' : `${Math.ceil((MIN_MS - elapsed) / 1000)}s to go`,
+            onClick: stop,
+            disabled: !longEnough,
+          },
+        ]
+      default:
+        return [{ key: 'camera', label: 'camera', onClick: openCamera, disabled: !mimeType }]
+    }
+  }
+
   useCommands(
     {
       chips: [
-        ...(!cameraOn || stage.kind === 'error'
-          ? [{ key: 'camera', label: 'camera', onClick: openCamera, disabled: !mimeType }]
-          : stage.kind === 'asking'
-            ? [{ key: 'wait', label: 'waiting…', disabled: true }]
-            : stage.kind === 'ready'
-              ? [{ key: 'start', label: 'start', onClick: start }]
-              : stage.kind === 'recording'
-                ? [
-                    {
-                      key: 'stop',
-                      label: longEnough ? 'stop' : `${Math.ceil((MIN_MS - elapsed) / 1000)}s to go`,
-                      onClick: stop,
-                      disabled: !longEnough,
-                    },
-                  ]
-                : stage.kind === 'sealing'
-                  ? [{ key: 'sealing', label: `sealing… ${Math.round(stage.done * 100)}%`, disabled: true }]
-                  : stage.kind === 'which'
-                    ? [
-                        {
-                          key: 'y',
-                          label: 'y',
-                          tone: 'yes' as const,
-                          onClick: () => sealClip(stage.clip, stage.stored, openDays[0]!),
-                        },
-                        {
-                          key: 'n',
-                          label: 'n',
-                          tone: 'no' as const,
-                          onClick: () => sealClip(stage.clip, stage.stored, openDays[openDays.length - 1]!),
-                        },
-                      ]
-                    : stage.kind === 'marking'
-                      ? [{ key: 'marking', label: 'signing…', disabled: true }]
-                        : stage.kind === 'sealed'
-                          ? openDays.length > 0
-                            ? [{ key: 'again', label: 'record again', onClick: start }]
-                            : []
-                          : stage.kind === 'done'
-                            ? [
-                                { key: 'again', label: 'record again', onClick: start },
-                                {
-                                  key: 'seal',
-                                  // A clip that already reached the server only needs the signature.
-                                  label: stage.stored ? 'sign again' : stage.error ? 'seal again' : 'seal',
-                                  tone: 'yes' as const,
-                                  // With two days open the clip has to say which one it is for;
-                                  // with one there is nothing to ask.
-                                  onClick: () =>
-                                    openDays.length > 1
-                                      ? setStage({ kind: 'which', clip: stage.clip, stored: stage.stored })
-                                      : sealClip(stage.clip, stage.stored, openDays[0]!),
-                                  disabled: !publicKey || openDays.length === 0,
-                                },
-                              ]
-                            : []),
+        ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
         // A finished week is worth collecting whatever else is on screen, so claim is not tucked
@@ -354,6 +365,17 @@ export function RecordPane({
         )}
         {run && <Days marks={marks} />}
       </dl>
+      {/* Today being open is the ordinary state and needs no announcement. A day before today
+          still being open is the thing somebody would want to be told, while there is time. */}
+      {run &&
+        openDays
+          .filter((d) => d !== day)
+          .map((d) => (
+            <p className="term-line" key={d}>
+              day {d + 1} is still empty — you can record it until{' '}
+              {deadline(shellStart(shellOf(d)) + (d % DAYS_PER_SHELL) * DAY_MS + RECORD_LATE_MS)}
+            </p>
+          ))}
       {claiming?.signature && (
         <p className="term-line">
           shell {claiming.shell} came back.{' '}
