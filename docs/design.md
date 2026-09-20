@@ -108,20 +108,81 @@ that is not deceiving anyone — it is **throwing away the thing you bought for 
 ## Which is why the server never touches the content
 
 Nothing is transcribed, so there is no audio to pull and no text to produce. All the server does is
-**check the length, hash it, store it**.
-
-Which means **the browser can encrypt before it uploads**. The key derives from a wallet signature
-and stays with the participant; the server keeps a blob it cannot open.
+**check the length, hash it, store it**. Today it stores it in the clear, and the length check is
+already the browser's job — a **guardrail for yourself** rather than a door holding anyone out,
+so the client is the right place for it.
 
 > "we don't watch it" → **"we cannot watch it"**
 
-The policy becomes structure. With the burn, the privacy design closes.
+That sentence is the whole target, and the distance to it is not encryption. It is that a server
+which can join video can watch video, whatever it promises. Automating the joining does not help;
+somebody can always read what is on the disk. So the promise is only keepable if the bytes are
+not here.
 
-- The length check happens in the browser too. That check is a **guardrail for yourself**, not a
-  door holding anyone out, so the client is the right place for it.
-- v1 can store in the clear and add encryption later. What matters is that **the structure leaves
-  room for it**. (Whether a wallet-signature-derived key is deterministic per wallet still needs
-  checking.)
+### The capsule
+
+Two things have to be true at once, and they look contradictory:
+
+1. **We cannot watch it.** Ever, including if we tried.
+2. **You cannot watch it either** — not until the run is finished. The minutes go in and the film
+   comes out; nothing in between is for looking at. This was the intention from the beginning,
+   which is why there has never been a route that plays a single clip back, and there should not
+   be one added by accident later.
+
+Encrypting under a key the participant holds gives the first and loses the second: they can open
+it whenever they like. Holding the key ourselves gives the second and loses the first. Either
+half alone is not the product.
+
+**The answer is to separate the bytes from the key.** Whoever holds one must not hold the other,
+and the chain says when they meet:
+
+```
+the minutes    stay on the participant's machine, encrypted. we never receive one
+the key        is ours, derived rather than stored, and released when the run is over
+the hash       is on chain, which is the only part anybody needs to trust
+```
+
+We cannot watch because we have nothing to watch. They cannot watch because they cannot open what
+they have. Neither side is being asked to behave; both are simply unable, and the condition for
+opening it is in a program that neither of us can edit.
+
+This also settles storage, which stopped being a design question the moment the bytes stayed put:
+**we keep 32 bytes per run.** No volume to outgrow, no object storage to rent, and the burn on our
+side becomes deleting a key.
+
+### What it costs
+
+- **It needs something installed.** A web page cannot keep a file on somebody's disk reliably, and
+  the whole arrangement rests on the file being there and not here.
+- **One machine per run.** Record on a laptop on Monday and a desktop on Tuesday and the minutes
+  are in two places, and only one of them can be joined. The chain does not care — the day counts
+  and the money is safe wherever it was recorded — but that Tuesday is not in the film. Say this
+  before anybody starts, not after.
+- **Losing the machine loses the film**, exactly as losing the wallet does. The same property that
+  makes it unreadable to us makes it unrecoverable by us, and that is not a bug to be fixed later.
+- **Support becomes guesswork.** Nothing can be reproduced, nothing can be looked at. The agent
+  has to keep a log the participant can send, because it is the only thing we will ever see.
+
+### It cannot be a CLI, and it does not have to be one
+
+The obvious shape for "runs locally, holds files" is a command-line tool. It is the wrong one, for
+a reason that has nothing to do with how hard terminals are: **you cannot see your own face in a
+terminal.** Recording a minute of yourself with no preview is recording blind, and the camera is
+the one thing the browser does genuinely well.
+
+So the browser keeps the camera and the whole interface, and what gets installed is a **local
+agent** — a background process listening on localhost that the site talks to. The clips go to it
+instead of to us; at the end it joins them with a real ffmpeg, which is also what makes a film of
+a ten-week run possible at all, since a browser cannot hold one. Nothing about the screen changes
+and the participant never types a command.
+
+Installing it can be one pasted line — `curl … | sh`, the way rustup and bun and Homebrew itself
+are installed. That is worth knowing for a second reason: **a binary installed from a terminal is
+not quarantined, and does not need notarising.** The signing fees are the price of a double-click
+installer, not of the software, and they can be deferred until there is a reason to pay them.
+
+**The community, the calendar, the memo, the register and the claim all stay on the web**, exactly
+as they are. The agent only ever handles bytes, and is meant to be invisible.
 
 ## The program
 
@@ -198,6 +259,11 @@ participant redeems later against a copy they hold. They do not hold one. Nobody
   the link dies is the day the film burns. One constant, and nothing extra to explain.
 - **Storage versioning and lifecycle backups stay off.** With them on, deletion is not deletion.
   Temporary files from ffmpeg get cleaned up with the rest.
+
+Under [the capsule](#the-capsule) this section shrinks to almost nothing: the minutes are never
+here, so the only thing we burn is a key, and the joining and the burning of the clips both
+happen on the participant's own machine. Everything below is what the burn means while the bytes
+are still ours — which is the arrangement the trial runs on.
 
 This is also the storage plan, which is not obvious until the numbers are written down. Nothing
 is deleted today, so the disk grows as `everybody who ever took part × everything they recorded`
@@ -305,13 +371,22 @@ waits, or it takes the trial's five runs with it.
   last one.
 - **Staff deletion in the room.** The room has none. One line from one person is all it takes,
   and right now the only remedy is a deploy.
-- **Clips to R2.** They go through the server to a mounted volume. That is the right shape for
-  five people and the wrong one for fifty; the browser does not have to notice the change.
-- **Encrypting in the browser.** The key derives from a wallet signature and stays with the
-  participant, and "we cannot watch it" replaces "we do not". Check first that the derivation is
-  deterministic per wallet — if it is not, the whole idea fails quietly and loses films.
-- **A CLI.** Low priority. A student studying does not install a terminal app, and the web
-  terminal already gives that feeling at no installation cost.
+- **The local agent**, which is where all of this is going — see [the capsule](#the-capsule). It
+  replaces three things that were separately on this list: object storage (nothing to store),
+  encrypting in the browser (the wrong half of the capsule), and a CLI (you cannot see your face
+  in a terminal). Before building any of it, two answers are needed:
+  - **Does a signature come back identical every time?** Sign the same sentence twice in Phantom,
+    in Backpack and in the burner, and compare the bytes. Ed25519 says it must; wallets are not
+    ed25519, they are software. If it does not hold, the key cannot be derived this way and the
+    design fails quietly, losing films rather than erroring.
+  - **Can an `https` page `fetch` from `http://localhost`?** Chrome treats localhost as trusted,
+    so it should. If it cannot, there is no agent, and an hour spent now saves the rest.
+- **Lower the bitrate.** 1.2 Mbps at 720p is generous for a face talking; 600 kbps at 480p takes
+  a minute from about 12 MB to about 4.5 MB. One line, and two thirds of the storage question
+  goes away while the storage question still exists.
+- **Storage until then.** Clips go through the server to a mounted volume, which is right for ten
+  people and wrong for fifty. If the agent is further off than it looks, this needs object
+  storage in between.
 
 ### Settled, kept here so it is not re-litigated
 
@@ -323,3 +398,18 @@ waits, or it takes the trial's five runs with it.
   matching.
 - The film is delivered as a link and never as an attachment: a week of minutes is 80 MB and a
   mailbox takes 25.
+- **Posting films by mail was built and then removed.** Sending one means holding one, holding one
+  means being able to watch it, and automating the send changes nothing about who could look. It
+  is not compatible with [the capsule](#the-capsule) and was taken out before anybody was offered
+  it.
+- **Decentralised storage is the wrong answer here, however well it rhymes.** Arweave, IPFS and
+  the rest exist to make deletion impossible, which is the one thing this product promises to do.
+  A private diary on permanent public storage is unerasable forever, and encrypting it only moves
+  the problem to whenever the key leaks. The part that needs to be trustless — the hash and the
+  time — is already on chain; what is left is a hard drive, and hard drives do not improve by
+  being on a blockchain.
+- **The film is one film, at the end of the run**, not one per shell. Per-shell would have fitted
+  a browser's memory, which is an argument about our constraints and not about what somebody
+  wants at the end of ten weeks.
+- **One machine per run**, once the agent exists, announced before anybody starts rather than
+  discovered afterwards.
