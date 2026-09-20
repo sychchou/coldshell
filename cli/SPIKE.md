@@ -14,6 +14,24 @@ half-signed transaction and adds its own. Taking part should not require holding
 client you use, and this way the CLI is another client of the same API rather than a second
 implementation of it.
 
+## Recording with the preview on — works
+
+`record.mjs` is one ffmpeg with two outputs: the file that gets kept, and small raw frames that
+get drawn. The preview *is* the recording rather than a second camera session that looks like it,
+so what you watch is what went in. There is a clock, the minute counts down, enter keeps it and
+ctrl-c throws it away — `q` to ffmpeg rather than a signal, because a half-written mp4 plays
+nowhere.
+
+```sh
+node cli/record.mjs ~/minute.mp4
+COLDSHELL_CAMERA=test COLDSHELL_SECONDS=8 node cli/record.mjs /tmp/t.mp4   # no camera needed
+```
+
+**The length comes from the file, not the stopwatch.** The stopwatch is for the screen, since a
+file being written cannot be asked how long it is; afterwards ffprobe answers, and a clip short of
+a minute is told so and kept anyway. This is the one thing the browser could never do —
+MediaRecorder writes no duration at all, so the length had to be timed and then trusted.
+
 ## The camera, in a terminal — half answered
 
 `ffmpeg` captures directly: `-f avfoundation` on macOS, `-f v4l2` on Linux, `-f dshow` on
