@@ -7,9 +7,8 @@ the week and every cent comes back, along with the film.
 
 ## How it works
 
-You stake USDC on a run of **shells**. A shell is a calendar week — Monday to Sunday — numbered
-globally, so everyone in shell #37 is in the same week whatever their run. A run is 1 to 10 of
-them, and $10 to $200.
+You stake USDC on a run of **shells**. A shell is a calendar week — **your** Monday to your
+Sunday, where you are — numbered from zero. A run is 1 to 10 of them, and $10 to $200.
 
 Every day, you record at least one minute of video in the browser. That is the whole obligation:
 no subject, no length beyond the minute, nothing to prove.

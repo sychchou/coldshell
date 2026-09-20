@@ -1,206 +1,218 @@
-# coldshell 설계 메모
+# coldshell design notes
 
-전작에서 넘어오면서 정한 것들. 채팅에서 합의한 내용을 그대로 옮겨둔다.
-내부 메모라서 아직 안 정해진 것과 백로그가 섞여 있다 — 공개 문서는 [RULES.md](../RULES.md)다.
+The decisions carried over from the earlier project, written down as they were settled in chat.
+This is an internal memo, so unsettled questions and backlog sit next to finished things — the
+public document is [RULES.md](../RULES.md).
 
-## 무엇이 달라졌나
+## What changed
 
-디스코드 음성방에서 카메라 시간을 재던 전작과 비교하면 이렇다.
+Against the earlier project, which counted camera time in a Discord voice room:
 
-| | 전작 | coldshell |
+| | before | coldshell |
 |---|---|---|
-| 증명 | 디스코드 음성방 카메라 3시간 | 매일 1분 이상 영상, 그날 안에 업로드 |
-| 검증 | 봇이 측정 + 참가자 배심원 | 없음 — 길이와 업로드 시각만 |
-| 단위 | weekly / biweekly 트랙 | shell 하나 = 달력의 한 주, 1~10개 |
-| 보상 | 승자가 판돈을 나눠 가짐 | 완주한 주마다 100% 환급 |
-| 스테이크 | 참가비 × multiply | $10~200 자유 |
-| 로그인 | 지갑 + 디스코드 | 지갑만 |
-| 결과물 | 상금 | 상금 아님 — 이어붙인 영상 한 편 |
+| proof | three hours on camera in a voice room | a minute of video a day, inside its window |
+| verification | a bot measured it, participants judged it | none — length and arrival time only |
+| unit | weekly / biweekly tracks | one shell = one calendar week, 1 to 10 |
+| reward | winners split the pot | every finished week refunded in full |
+| stake | entry fee × multiplier | $10–200, free choice |
+| login | wallet + Discord | wallet only |
+| outcome | prize money | not money — one film, joined |
 
-## shell = 그 주 자체
-
-```
-shell #3 = 당신의 월요일 00:00 ~ 당신의 일요일 23:59
-```
-
-코호트가 아니라 **달력의 주**에 0부터 번호를 붙인다. shell #0은 2026-09-21 월요일에 시작한
-첫 주다. 5주를 신청한 사람은 shell #3~#7에 있다.
-
-**주는 각자의 것이다.** 등록할 때 브라우저가 어느 시간대인지 알려주고, 런이 그걸 들고 다닌다.
-체인에는 시계가 하나뿐이고 남의 시계를 알 방법이 없으므로, 답을 런이 갖는 수밖에 없다.
-오프셋은 **처음 한 번만** 말하고 다시는 못 바꾼다 — 자기 자정을 옮길 수 있으면 이미 놓친 날을
-피해 갈 수 있다. 거짓말해도 얻을 게 없다. 뭐라고 하든 내 하루 7개다.
-
-그래서 서울과 뉴욕이 shell #3에 몇 시간 어긋나 있다. **아무것도 거기에 기대지 않는다.**
-판돈이 없고 남의 주가 내 환급에 관여하지 않으니, shell 번호는 코호트가 아니라 **색인**이고
-"저 사람이 먼저 시작했구나"로 읽히면 충분하다.
-
-- 기간은 **1~10 shell**. **돌고 있는 주에는 들어갈 수 없다.** 일요일 23:59까지 결제하면
-  다음 월요일부터 시작이고, 최대 7일 기다린다. 이미 시작한 주에 끼워 넣으면 잃어버린
-  날이 포함된 주를 파는 셈이고, 화면도 "지금 돌고 있는 주"와 "당신이 산 주"를 같은
-  칸으로 가리켜야 한다.
-- weekly / monthly 같은 트랙 구분이 없다. 단위는 주 하나뿐.
-
-### 한 shell의 시간표
-
-하루는 시작 **1시간 전부터 30시간 후까지** 기록할 수 있다. 1시간은 서로 조금 다른 시계들을
-위한 것이고, 하루를 넘긴 **6시간이 유예**다. 새벽 두 시에 끝내는 것도 끝내는 것이다.
+## A shell is the week itself
 
 ```
-월 화 수 목 금 토 일 | 월 06:00 — 일요일 분량 마감이자 정산.
-                     |            여기서부터 4주가 클레임 기간
+shell #3 = your Monday 00:00 – your Sunday 23:59
 ```
 
-**창이 통째로 유예가 된 것이 이 설계의 요점이다.** 예전에는 48시간 중 36시간이 시차를 메우는
-데 쓰였다 — 화면은 각자의 하루를 세고 체인은 UTC를 세니, 그 사이의 여유가 둘을 붙잡고
-있었다. 유예를 늘리려면 시차를 더 사야 했다. 런이 자기 시간대를 들고 다니면서 그 비용이
-0이 됐고, 이제 창의 길이는 **순수하게 고를 수 있는 값**이다.
+Not a cohort: calendar weeks, numbered from zero. Shell #0 is the week beginning Monday
+2026-09-21. Somebody who buys five weeks holds shells #3 through #7.
 
-마지막 날이 녹화 불가가 되는 순간과 정산 시각이 **같은 순간**이다. 예전의 "화요일 정산"이라는
-군더더기가 여기서 사라졌다.
+**The week belongs to whoever is living it.** At registration the browser says which timezone it
+is in, and the run carries that answer around. The chain has exactly one clock and no way to read
+anyone else's, so the run has to hold the answer itself. The offset is said **once** and can never
+be changed — being able to move your own midnight is being able to step around a day you already
+missed. Lying gains nothing. Whatever you claim, it is still seven of your own days.
 
-## 주 단위 청산
+So Seoul and New York are a few hours apart inside shell #3. **Nothing depends on that.** There is
+no pool and nobody else's week touches your refund, so the shell number is an **index** rather than
+a cohort, and "they started before me" is all it ever has to mean.
 
-**shell 하나하나가 별도의 약속이다.**
+- A run is **1 to 10 shells**. **You cannot join a week already under way.** Pay any time up to
+  Sunday 23:59 and you start the following Monday, waiting at most seven days. Slotting somebody
+  into a running week would be selling them a week with days already lost, and the screen would
+  have to point at "the week now running" and "the week you bought" with the same cell.
+- No weekly/monthly tracks. The week is the only unit.
 
-- 10 shell을 신청하면 10개의 shell에 각각 스테이크를 건 것이다.
-- 3주차에 하루 빠지면 **3주차 몫만** 잃는다. 나머지 9주는 그대로 간다.
-- 10주 전부 아니면 전무는 쓰지 않는다. 68일째에 열이 나서 67일이 날아가는 건
-  사람을 돕는 엔진이 아니라 사람을 부수는 기계다.
+### The timetable of one shell
 
-## 스테이크
-
-- **$10 ~ $200 사이에서 자유롭게.** 판돈을 나누지 않으므로 단위를 맞출 이유가 없고,
-  "얼마면 아플까"는 사람마다 완전히 다르다. 이것이 커밋먼트를 진짜로 만드는 제일 강한 레버다.
-- 상한은 수익이 아니라 **사람을 보호하려고** 둔다. 무제한이면 감당 못 할 돈을 거는 사람이 나온다.
-- 신청한 shell 수로 균등 분할. 나머지는 마지막 청산에 몰아준다. USDC가 6자리 소수라
-  나머지는 100만분의 몇 달러 수준이니 **여기에 설계 시간을 쓰지 않는다.**
-
-## 검증 — 하지 않는다
-
-깃헙은 커밋이 진짜 작업인지 보지 않는다. `git commit --date`로 날짜 조작도 된다.
-그런데도 잔디밭이 수백만 명을 움직인다. 기계가 심판이 아니라 **거울**이기 때문이다.
-
-**남는 규칙은 둘뿐이다.**
-
-1. 영상은 **1분 이상**
-2. **그 날의 창 안에 업로드** (시작 1시간 전 ~ 30시간 후, 각자의 시간대 기준)
-
-오늘의 코드, 음성 인식, 워드리스트, 중복 검사 — 전부 없앴다. 환급제라서 **누가 부정으로
-통과해도 다른 참가자가 잃는 것이 하나도 없기** 때문이다. 적대적 구조가 없으면 적대적 검증도
-필요 없다.
-
-몰아 찍기는 **업로드 창**이 막는다. 내용이 아니라 시각으로 강제하므로 검증이 0이다.
-미리 찍어두고 매일 올리는 것은 여전히 가능하지만, 그건 남을 속이는 게 아니라
-**자기가 산 것을 자기가 버리는 것**이다.
-
-## 그래서 서버는 내용을 만지지 않는다
-
-전사를 하지 않으므로 오디오를 뽑을 일도, 텍스트를 만들 일도 없다. 서버가 하는 일은
-**길이 확인 + 해시 + 저장**뿐이다.
-
-그 결과 **브라우저에서 암호화해서 올릴 수 있다.** 키는 지갑 서명에서 파생시켜 본인만 갖고,
-서버는 열 수 없는 덩어리를 보관한다.
-
-> "우리는 보지 않습니다" → **"우리는 볼 수가 없습니다"**
-
-정책이 구조가 된다. 소각과 합치면 프라이버시 설계가 닫힌다.
-
-- 길이 확인도 브라우저가 한다. 그 검증은 남을 막는 문이 아니라 **자기 자신을 위한
-  가드레일**이므로 클라이언트에서 해도 된다.
-- v1은 서버 저장으로 두고 암호화는 나중에 올려도 된다. 중요한 건 **구조가 열려 있다는 것**이다.
-  (지갑 서명 파생 키는 지갑마다 결정적인지 확인이 필요하다.)
-
-## 프로그램
+A day can be recorded from **one hour before it starts until thirty hours after**. The hour is for
+clocks that disagree a little; the six hours past the day are **grace**. Finishing at two in the
+morning is still finishing.
 
 ```
-enter(shells, stake)      스테이크 예치. 시작 shell은 체인이 시계에서 계산한다
-record_day(day, hash)     참가자 본인 서명. 오라클 없음 — 내용은 아무도 보지 않는다
-claim(shell)              그 주를 다 했으면 그 주 몫 전액 환급
-sweep(shell)              포기분 회수. 누구나 호출할 수 있고 돈은 트레저리로만 간다
-close                     rent 회수
+Mon Tue Wed Thu Fri Sat Sun | Mon 06:00 — Sunday's minute closes, and the week settles.
+                            |             Four weeks to claim, counted from here.
 ```
 
-`sweep`에 서명이 필요 없는 이유: 받는 계정이 트레저리로 못박혀 있어서 남이 불러도 얻을 게
-없다. 덕분에 **트레저리 키가 서버에 있을 이유가 사라진다.** `close`는 남은 토큰을 먼저
-트레저리로 비우므로, 누가 vault에 돈을 보내도 환급액은 늘지 않고 계정은 항상 닫힌다.
+**The point of this design is that the window became grace, all of it.** It used to be 48 hours, of
+which 36 went on paying for timezones — the screen counted everybody's own day while the chain
+counted UTC, and the slack between them was what held the two together. Widening the grace meant
+buying more timezone. Once the run carries its own offset that cost is zero, and the length of the
+window is now **purely a thing we choose**.
 
-`tally`, `rollover`, `winner_shares`, multiply 비중, 0.01 반올림, 경고, 배심원 — 전부 없다.
-- **수령할 때 참가자 계정을 닫아 rent를 회수한다.** 안 하면 계정이 영원히 쌓인다.
-  1000명이면 2~4 SOL이 묶인다.
-- **보안**: 서버가 fee payer이므로 **서버가 직접 조립한 트랜잭션에만 서명**해야 한다.
-  사용자가 보낸 트랜잭션에 서명해주면 남의 수수료를 대신 내주는 무료 지갑이 된다.
+The moment the last day stops being recordable and the moment the money can move are **the same
+moment**. The old "settles on Tuesday" slack disappeared here.
 
-## 소각
+## Settling by the week
 
-전달이 끝나면 우리 쪽에는 아무것도 남기지 않는다. "보지 않습니다"보다 "남아 있지
-않습니다"가 지킬 수 있는 약속이고, 수천 명의 사적인 영상을 영구 보관하는 것 자체가
-언젠가 반드시 사고가 나는 부채다.
+**Each shell is a separate promise.**
+
+- Buying 10 shells is placing ten stakes, one per shell.
+- Missing a day in week 3 loses **week 3's share only**. The other nine are untouched.
+- No all-or-nothing over ten weeks. Losing 67 days because of a fever on day 68 is not an engine
+  that helps a person; it is a machine that breaks one.
+
+## The stake
+
+- **$10 to $200, freely chosen.** Nothing is split between participants, so there is no reason to
+  make the units match, and "how much would hurt" is completely different from person to person.
+  This is the strongest lever there is for making the commitment real.
+- The ceiling is there to **protect people**, not revenue. Without one, somebody stakes money they
+  cannot afford to lose.
+- Divided evenly across the shells bought; the remainder goes to the last settlement. USDC has six
+  decimals, so the remainder is a millionth of a dollar — **no design time goes here**.
+
+## Verification — there is none
+
+GitHub does not check whether a commit is real work. `git commit --date` will backdate one. The
+graph moves millions of people anyway, because the machine is not a judge but a **mirror**.
+
+**Two rules survive.**
+
+1. The video is **at least a minute**
+2. **Uploaded inside that day's window** (one hour before, thirty hours after, in the run's own
+   timezone)
+
+Today's code, speech recognition, word lists, duplicate detection — all gone. Because this is a
+refund and not a pot, **nobody else loses anything when somebody cheats their way through**. With
+no adversarial structure there is no need for adversarial checking.
+
+Recording a week in one sitting is blocked by the **upload window**: enforced on time rather than
+content, so it costs zero verification. Filming ahead and uploading daily is still possible, but
+that is not deceiving anyone — it is **throwing away the thing you bought for yourself**.
+
+## Which is why the server never touches the content
+
+Nothing is transcribed, so there is no audio to pull and no text to produce. All the server does is
+**check the length, hash it, store it**.
+
+Which means **the browser can encrypt before it uploads**. The key derives from a wallet signature
+and stays with the participant; the server keeps a blob it cannot open.
+
+> "we don't watch it" → **"we cannot watch it"**
+
+The policy becomes structure. With the burn, the privacy design closes.
+
+- The length check happens in the browser too. That check is a **guardrail for yourself**, not a
+  door holding anyone out, so the client is the right place for it.
+- v1 can store in the clear and add encryption later. What matters is that **the structure leaves
+  room for it**. (Whether a wallet-signature-derived key is deterministic per wallet still needs
+  checking.)
+
+## The program
 
 ```
-챌린지 종료 → 이어붙이기 → 전달 → 유예 기간(2~4주) → 원본과 완성본 모두 삭제
+enter(shells, stake)      deposit. the starting shell is computed on chain from the clock
+record_day(day, hash)     signed by the participant. no oracle — nobody reads the content
+claim(shell)              a week done in full comes back in full
+sweep(shell)              collect a forfeit. anyone may call it; the money only goes to treasury
+close                     reclaim rent
 ```
 
-- **전달이 확인되기 전에는 절대 태우지 않는다.** 메일이 반송됐는데 지워버리면 그 사람의
-  한 달이 영영 사라진다. 유예 기간과 소각 날짜를 처음부터 명시하고, status 화면에
-  `your shell burns in 6 days` 같은 줄로 한 번 더 알린다.
-- 유예 기간은 분쟁 기간보다 길어야 한다. 지우고 나면 "검사가 잘못됐다"는 이의에
-  확인할 근거가 없다.
-- **전달에는 원본 클립과 이어붙인 영화를 함께 넣는다.** 그러면 본인은 원본 해시를
-  체인과 대조할 수 있고, 사후 검증 능력이 **본인에게만** 남는다.
-- 완성본도 같이 지운다. 원본만 지우고 완성본을 들고 있으면 내용은 그대로 가진 것이다.
-- **스토리지 버저닝과 라이프사이클 백업은 꺼둔다.** 켜져 있으면 삭제가 삭제가 아니다.
-  ffmpeg·whisper가 만든 임시 파일도 같이 정리한다.
+`sweep` needs no signature because the destination is pinned to the treasury: a stranger calling it
+gains nothing. That is what **removes any reason for the treasury key to live on the server**.
+`close` empties leftover tokens to the treasury first, so sending money to a vault cannot inflate a
+refund and the account always closes.
 
-체인에는 해시만 남는다 — 아무것도 남지 않은 것의 존재 증명.
+`tally`, `rollover`, `winner_shares`, multiplier weights, rounding to 0.01, warnings, juries — none
+of it exists.
+- **Closing the participant's account on claim reclaims the rent.** Otherwise accounts pile up
+  forever: a thousand people is 2–4 SOL locked away.
+- **Security**: the server is the fee payer, so it must **only sign transactions it assembled
+  itself**. Signing one handed to it turns the wallet into a free fee payer for anybody.
 
-## 이름과 태도
+## The burn
 
-- 로고 없이 워드마크만. 파비콘·프로필 자리는 깜빡이는 커서 블록(`▮`) — 로고가 아닌 로고.
-- 슬로건은 **`you vs you`** 로 확정. (`beat yourself`는 영어에서 `beat yourself up`(자책하다)으로
-  먼저 읽혀서 뜻이 어긋난다.)
-- 화면에는 `N inside` — 누군지는 모르지만 몇 명이 지금 나와 같이 안에 있는지는 안다.
-  익명 그룹의 느낌을 사람 목록이 아니라 숫자 하나로 낸다.
+Once it is delivered, nothing stays on our side. "It is not here any more" is a keepable promise in
+a way "we don't look" is not, and holding thousands of people's private videos forever is a
+liability that eventually, certainly, goes wrong.
 
-**한 사람을 돕는 엔진이다.** 그래서 앞으로 만들지 않을 것: 리더보드, 순위, 남의 진행 상황,
-피드. 커뮤니티는 옆에 두되 제품 안으로 들이지 않는다.
+```
+run ends → joined → delivered → grace period (2–4 weeks) → originals and film both deleted
+```
 
-## 체인이 하는 일
+- **Never burn before delivery is confirmed.** Deleting after a bounced email erases somebody's
+  month for good. State the grace period and the burn date from the start, and say it once more on
+  the status screen as a line like `your shell burns in 6 days`.
+- The grace period has to outlast the dispute period. Once it is deleted there is nothing left to
+  check a "the check was wrong" complaint against.
+- **Delivery carries the original clips alongside the joined film.** Then the participant can
+  compare the original hashes against the chain, and the ability to verify after the fact remains
+  **with them alone**.
+- The film is deleted too. Deleting the originals while keeping the film is keeping the content.
+- **Storage versioning and lifecycle backups stay off.** With them on, deletion is not deletion.
+  Temporary files from ffmpeg get cleaned up with the rest.
 
-정확히 둘. 둘 다 DB로는 할 수 없다.
+What stays on chain is the hash — proof of the existence of something that is no longer anywhere.
 
-1. **우리가 건드릴 수 없는 돈.** "전액 돌려준다"가 약속인 이상, 프로그램이 본인에게만
-   줄 수 있다는 사실이 그 약속을 성립시킨다.
-2. **우리가 고칠 수 없는 기록.** 수익이 포기분에서만 나오므로 **우리에게는 참가자를
-   떨어뜨릴 금전적 동기가 있다.** DB였다면 기록을 조용히 지워 스테이크를 삼킬 수 있다.
-   체인에 박히면 불가능하다.
+## Name and manner
 
-> 우리는 당신이 실패해야 돈을 번다. 그래서 그 기록을 우리가 못 만지는 곳에 둔다.
+- No logo, only the wordmark. The favicon and avatar slot is a blinking cursor block (`▮`) — the
+  logo that is not one.
+- The slogan is **`you vs you`**. (`beat yourself` reads as `beat yourself up` first, which means
+  the opposite of the intent.)
+- The screen says `N inside` — you do not know who, but you know how many are in here with you
+  right now. The feeling of an anonymous group from a single number rather than a list of people.
 
-### 검토할 것: 오라클 없애기
+**This is an engine for one person.** So these will not be built: leaderboards, rankings, other
+people's progress, a feed. The community sits beside the product and is not let inside it.
 
-지금은 오라클이 `record_day`에 서명한다. 판단 내용은 좁지만(60초 넘는 파일이 오늘
-올라왔나) 어쨌든 우리가 판단한다.
+## What the chain is for
 
-**참가자가 직접 서명하면** 체인의 블록 시각이 곧 그날의 증거가 되고, 우리는 수수료만
-내주며 아무것도 증언하지 않는다. 증명 경로에서 신뢰 대상이 완전히 사라진다. 남는 것은
-"그 파일이 진짜 1분짜리 영상인가"뿐인데, 그건 본인만 손해 보는 문제다.
+Exactly two things. Neither is possible with a database.
 
-## 아직 안 정한 것
+1. **Money we cannot touch.** As long as "everything comes back" is the promise, what makes it a
+   promise is that the program can only pay the participant.
+2. **A record we cannot edit.** All income comes from forfeits, so **we have a financial motive to
+   see participants fail**. In a database, a record could be quietly deleted and the stake
+   swallowed. On chain it cannot.
 
-- 영상을 이어붙여 어떻게 전달할지 (메일? 다운로드 링크?)
-- 커뮤니티 탭 — 참가자가 한 줄씩 남기는 창. 누가 쓸 수 있는지(참가자 한정이 유력),
-  스태프 삭제 기능은 처음부터 필요.
-- CLI. 우선순위 낮음 — 공부하는 학생은 터미널 앱을 깔지 않는다. 웹 터미널이 이미
-  그 느낌을 설치 비용 0으로 준다.
+> We make money when you fail. So we put the record somewhere we cannot reach it.
 
-## 먼저 확인할 것 (다른 걸 만들기 전에)
+### To revisit: removing the oracle
 
-**업로드 파이프라인.** 이제 남은 미지수는 이것 하나다.
+Currently an oracle signs `record_day`. The judgement is narrow — did a file over sixty seconds
+arrive today — but it is still our judgement.
 
-- 1분 720p 실제 용량, 업로드 시간 체감
-- 브라우저 녹화(`MediaRecorder`) vs 파일 선택 — 어느 쪽이 편한지
-- R2 presigned URL 직결 (서버 경유는 터진다)
-- 길이 확인을 브라우저에서 하는 방법
+**If the participant signs instead**, the block time is the evidence, and we pay the fee while
+testifying to nothing. The proof path has nobody left to trust. What remains is "is that file
+really a minute of video", and that is a question only the participant can lose on.
 
-음성 검증 스파이크는 사라졌다. whisper, 워드리스트, 정규화, 매칭 전부 필요 없다.
+## Not settled yet
+
+- How the joined film is delivered (email? a download link?)
+- The community tab — a window where participants leave a line each. Who may write (participants
+  only, most likely); staff deletion needed from day one.
+- A CLI. Low priority — a student studying does not install a terminal app. The web terminal
+  already gives that feeling at zero installation cost.
+
+## To check first (before building anything else)
+
+**The upload pipeline.** It is the one unknown left.
+
+- What a minute of 720p actually weighs, and how long an upload feels
+- Recording in the browser (`MediaRecorder`) vs picking a file — which is easier
+- R2 presigned URLs, direct (going through the server falls over)
+- How to check the length in the browser
+
+The speech-verification spike is gone. No whisper, no word lists, no normalisation, no matching.
