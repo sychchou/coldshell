@@ -157,8 +157,9 @@ liability that eventually, certainly, goes wrong.
 ```
 during the run       the minutes, and only the minutes
 the run ends         the film is joined — and the minutes are burned
-grace (4 weeks)      the film, and only the film
-grace ends           the film is burned
+waiting              the film, and only the film
+delivered            two weeks left, and the mailed link runs out with them
+burned               nothing anywhere — six weeks after the run ended at the latest
 ```
 
 **The minutes are never downloadable.** Not during the run, not at the end, not ever. The one
@@ -177,11 +178,24 @@ participant redeems later against a copy they hold. They do not hold one. Nobody
   on the status screen as a line like `your shell burns in 6 days`.
 - The grace period has to outlast the dispute period. Once it is deleted there is nothing left to
   check a "the check was wrong" complaint against.
-- **Four weeks of grace collides with the four-week claim window**, which is `CLAIM_WINDOW_SECONDS
-  = 28 days` and starts at the same moment. Somebody who leaves their money until the last day
-  would arrive to collect it and find the film burned that morning — and arriving to collect is
-  exactly when most people would think to ask for it. The grace has to start later than the run
-  ends, or run longer than the claim window does.
+- **The clock starts at delivery, not at the end of the run and not at a claim.** A film burns
+  two weeks after it is first downloaded or posted, and in any case six weeks after the run
+  ended. Four weeks of grace from the run's end would have expired on the same day as the
+  four-week claim window — so the person who leaves their money until the last day arrives to
+  collect it and finds the film burned that morning, and arriving to collect is exactly when
+  most people would think to ask for it.
+
+  A claim cannot be the clock either, however tempting. Claiming is per week and a film is per
+  run, so there is no single claim to hang it on; a week that was missed has nothing to claim at
+  all, and somebody who missed every week has no claim anywhere and still recorded minutes and
+  still wants them. Money and film are separate questions, and only the film's own delivery
+  answers the film's.
+
+  The six weeks is the backstop for whoever never comes back — without one, their film is kept
+  forever and the ceiling this section exists to create is gone again.
+
+  It also collapses two numbers into one: a mailed link already lasts fourteen days, so the day
+  the link dies is the day the film burns. One constant, and nothing extra to explain.
 - **Storage versioning and lifecycle backups stay off.** With them on, deletion is not deletion.
   Temporary files from ffmpeg get cleaned up with the rest.
 
@@ -274,7 +288,9 @@ waits, or it takes the trial's five runs with it.
   promise is louder than the code. The shape is in [The burn](#the-burn) — minutes burned when
   the film is joined, film burned when the grace runs out — and what it needs is a delivery
   recorded as confirmed, a grace that outlasts the claim window, `your shell burns in 6 days` on
-  the screen before it happens, and the check that the film is real before the minutes go.
+  the screen before it happens, and the check that the film is real before the minutes go. The
+  burn clock hangs off delivery — two weeks from it, six from the run's end at the latest — so
+  `FILM_MAIL_TTL_MS` and the grace are the same fourteen days and should be the same constant.
 - **Automatic posting at settlement.** Today the film is posted because somebody pressed send,
   which makes the mail worth about as much as the download beside it. Posting it the moment the
   week settles is the version worth having, and it needs an address the server keeps — which is
