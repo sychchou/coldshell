@@ -23,7 +23,14 @@ export function Prompt({
   onCancel: () => void
 }) {
   const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => ref.current?.focus(), [])
+  // After whatever is already written, not before it: a line you are coming back to is a line
+  // you meant to add to.
+  useEffect(() => {
+    const input = ref.current
+    if (!input) return
+    input.focus()
+    input.setSelectionRange(input.value.length, input.value.length)
+  }, [])
   return (
     <p className="term-input">
       <span className="term-input-label">{label}&gt;</span>

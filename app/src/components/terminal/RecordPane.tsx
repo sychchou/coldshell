@@ -178,7 +178,10 @@ export function RecordPane({
     if (!publicKey) return
     setNote({ busy: true })
     try {
-      setNote({ memo: (await myMemo(publicKey.toBase58())).memo })
+      const memo = (await myMemo(publicKey.toBase58())).memo
+      // Straight into the line with the caret after it. Reading it and changing it are the same
+      // gesture; a step in between would only be a step.
+      setNote({ memo, draft: memo?.said ?? '' })
     } catch (err) {
       setNote({ error: explain(err) })
     }
@@ -381,9 +384,6 @@ export function RecordPane({
               },
             ]
           : []),
-        ...(note?.memo !== undefined && note.draft === undefined
-          ? [{ key: 'edit', label: note.memo ? 'edit memo' : 'write one', onClick: () => setNote({ ...note, draft: note.memo?.said ?? '' }) }]
-          : []),
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
@@ -466,9 +466,9 @@ export function RecordPane({
           {note.busy && note.draft === undefined && <p className="term-line term-dim">reading…</p>}
           {note.error && <p className="term-line term-bad">{note.error}</p>}
           {note.draft === undefined && note.memo && <p className="term-line">{note.memo.said}</p>}
-          {note.draft === undefined && note.memo === null && (
+          {note.draft === '' && note.memo == null && (
             <p className="term-line term-dim">
-              nothing here yet. one line to yourself, for the evening you would rather not.
+              one line to yourself, for the evening you would rather not.
             </p>
           )}
           {note.draft !== undefined && (
