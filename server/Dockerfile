@@ -1,19 +1,21 @@
-# The server runs the API and the Discord bot in one long-lived process.
+# The API: transactions the platform pays for, the clips people send, and the film made of them.
 FROM node:26-alpine
+
+# The film is joined with ffmpeg, and its running time is asked of ffprobe.
+RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
-# The server reads the program IDL from the app folder.
-COPY app/src/idl ./app/src/idl
-COPY server/package.json server/package-lock.json ./server/
-RUN cd server && npm ci --omit=dev
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev
 
-COPY server/src ./server/src
+COPY server/src ./src
 
 ENV NODE_ENV=production
-# Mount a volume here so the time-tracking database survives restarts.
-ENV DB_PATH=/data/grind.db
+# Recordings are the product, and a container's own disk does not survive it. Mount a volume at
+# /data or every clip is lost on the next deploy.
+ENV CLIP_DIR=/data/clips
+ENV FILM_DIR=/data/films
 EXPOSE 8787
 
-WORKDIR /app/server
 CMD ["node", "src/index.ts"]
