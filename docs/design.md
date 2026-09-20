@@ -396,7 +396,15 @@ waits, or it takes the trial's five runs with it.
 - **The local agent**, which is where all of this is going — see [the capsule](#the-capsule). It
   replaces three things that were separately on this list: object storage (nothing to store),
   encrypting in the browser (the wrong half of the capsule), and a CLI (you cannot see your face
-  in a terminal). Before building any of it, two answers are needed:
+  in a terminal).
+
+  **It exists and it runs**, in [`agent/`](../agent): one pasted line installs it, it serves the
+  app at `http://127.0.0.1:7531`, proxies `/api` to the real server, and takes itself off the
+  machine when asked. What it does not do yet is the only part that matters — the clips still go
+  to us. Next: store them there instead, encrypted under a key derived from the wallet, and join
+  the film with the ffmpeg already on that machine.
+
+  Still to answer:
   - **Does a signature come back identical every time?** **Half answered.** WebCrypto Ed25519
     signs the same sentence identically across five runs and across a re-imported key, and the
     HKDF key derived from it is stable — which covers the burner, since that is the same code
