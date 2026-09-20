@@ -93,13 +93,12 @@ export function shellOf(ts: number) {
 }
 
 /**
- * The shell a run paid for now would begin in. Shells start on Mondays: pay on the Monday and
- * the week that just started is yours, pay later and the run begins on the next one. This is the
- * same rule the program applies, and it is the program's answer that counts.
+ * The shell a run paid for now would begin in: always the next one. A week already under way
+ * cannot be joined — it would be selling somebody days they had already lost. This is the rule
+ * the program applies, and it is the program's answer that counts.
  */
 export function startingShell(now = Date.now()) {
-  const { shell, dayOfShell } = today(now)
-  return dayOfShell === 1 ? shell : shell + 1
+  return today(now).shell + 1
 }
 
 /**

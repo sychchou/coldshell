@@ -42,5 +42,9 @@ spl-token create-account "$MINT" --owner "$TREASURY" --fee-payer "$WALLET" -u "$
 cp target/idl/coldshell.json target/types/coldshell.ts app/src/idl/
 # The server assembles its own instructions, so it needs the same discriminators and constants.
 cp target/idl/coldshell.json server/src/idl/
+
+# A constant the program stopped exporting breaks nothing until the site is opened, where it
+# breaks everything. This is the moment to find out.
+node scripts/check-idl.mjs
 DAY=$(python3 -c "import json;d=json.load(open('target/idl/coldshell.json'));print([c['value'] for c in d['constants'] if c['name']=='DAY_SECONDS'][0])")
 echo "deployed with DAY_SECONDS=$DAY. IDL copied into app/src/idl — commit it so the server and site match."

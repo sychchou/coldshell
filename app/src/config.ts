@@ -35,7 +35,6 @@ export const WEEK_MS = seconds('WEEK_SECONDS')
 export const RECORD_EARLY_MS = seconds('RECORD_EARLY_SECONDS')
 export const RECORD_LATE_MS = seconds('RECORD_LATE_SECONDS')
 export const CLAIM_WINDOW_MS = seconds('CLAIM_WINDOW_SECONDS')
-export const START_GRACE_MS = seconds('START_GRACE_SECONDS')
 
 export const DAYS_PER_SHELL = Number(idlConstant('DAYS_PER_SHELL'))
 export const MAX_SHELLS = Number(idlConstant('MAX_SHELLS'))

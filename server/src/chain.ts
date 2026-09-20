@@ -53,7 +53,6 @@ export const DAYS_PER_SHELL = Number(constant('DAYS_PER_SHELL'))
 export const RECORD_EARLY_SECONDS = Number(constant('RECORD_EARLY_SECONDS'))
 export const RECORD_LATE_SECONDS = Number(constant('RECORD_LATE_SECONDS'))
 export const CLAIM_WINDOW_SECONDS = Number(constant('CLAIM_WINDOW_SECONDS'))
-export const START_GRACE_SECONDS = Number(constant('START_GRACE_SECONDS'))
 export const MAX_SHELLS = Number(constant('MAX_SHELLS'))
 export const MIN_STAKE = Number(constant('MIN_STAKE'))
 export const MAX_STAKE = Number(constant('MAX_STAKE'))
@@ -88,12 +87,8 @@ export const nowSeconds = () => Math.floor(Date.now() / 1000)
 export const currentShell = (now = nowSeconds()) =>
   Math.floor((now - SHELL_EPOCH_TS) / WEEK_SECONDS) + 1
 
-/** Where a run paid for at `now` would begin. Monday itself still counts; later does not. */
-export function startingShell(now = nowSeconds()) {
-  const shell = currentShell(now)
-  const began = now - ((now - SHELL_EPOCH_TS) % WEEK_SECONDS)
-  return now < began + START_GRACE_SECONDS ? shell : shell + 1
-}
+/** Where a run paid for at `now` would begin: always the next shell. */
+export const startingShell = (now = nowSeconds()) => currentShell(now) + 1
 
 export const shellStart = (index: number) => SHELL_EPOCH_TS + (index - 1) * WEEK_SECONDS
 
