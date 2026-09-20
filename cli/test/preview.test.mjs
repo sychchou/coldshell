@@ -22,6 +22,8 @@ const pngStream = () =>
 test('a terminal is asked what it can do, and told when it cannot', () => {
   assert.equal(detect({ TERM: 'xterm-kitty' }), 'kitty')
   assert.equal(detect({ TERM_PROGRAM: 'ghostty' }), 'kitty')
+  assert.equal(detect({ TERM: 'xterm-ghostty' }), 'kitty')
+  assert.equal(detect({ WEZTERM_PANE: '0' }), 'kitty')
   assert.equal(detect({ TERM_PROGRAM: 'WezTerm' }), 'kitty')
   assert.equal(detect({ TERM_PROGRAM: 'iTerm.app' }), 'iterm')
   assert.equal(detect({ TERM_PROGRAM: 'Apple_Terminal' }), 'blocks')

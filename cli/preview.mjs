@@ -13,9 +13,10 @@
 /** What this terminal can do, asked once. */
 export function detect(env = process.env) {
   if (env.COLDSHELL_PREVIEW) return env.COLDSHELL_PREVIEW
+  // Several terminals speak kitty's protocol, and they do not agree on which variable says so.
   if (env.KITTY_WINDOW_ID || env.TERM === 'xterm-kitty') return 'kitty'
-  if (env.TERM_PROGRAM === 'ghostty' || env.GHOSTTY_RESOURCES_DIR) return 'kitty'
-  if (env.TERM_PROGRAM === 'WezTerm') return 'kitty'
+  if (env.TERM === 'xterm-ghostty' || env.TERM_PROGRAM === 'ghostty' || env.GHOSTTY_RESOURCES_DIR) return 'kitty'
+  if (env.TERM_PROGRAM === 'WezTerm' || env.WEZTERM_PANE !== undefined) return 'kitty'
   if (env.TERM_PROGRAM === 'iTerm.app') return 'iterm'
   return 'blocks'
 }
