@@ -11,6 +11,7 @@ import { fetchRun } from './chain.ts'
 import { PublicKey } from '@solana/web3.js'
 import { FilmError, film, kept } from './film.ts'
 import { ProofError, check } from './proof.ts'
+import { RoomError, announceClaim, room, say } from './community.ts'
 
 const app = new Hono()
 
@@ -69,6 +70,39 @@ app.post('/api/clip/signature', async (c) => {
     if (err instanceof ClipError) return c.json({ error: err.message }, 400)
     console.error('[clip/signature]', err)
     return c.json({ error: 'could not note that' }, 500)
+  }
+})
+
+/** The week's room. Open to read: there is nothing in it that is not said out loud. */
+app.get('/api/community', async (c) => {
+  try {
+    return c.json({ lines: await room() })
+  } catch (err) {
+    console.error('[community]', err)
+    return c.json({ error: 'could not read the room' }, 500)
+  }
+})
+
+/**
+ * Saying something, or announcing a week that came back.
+ *
+ * Signed, because a line here carries a name and the name is somebody's wallet. A claim is
+ * checked against the chain as well: it is the one line in the room that reads as a fact, so it
+ * had better be one.
+ */
+app.post('/api/community', async (c) => {
+  const { wallet, issuedAt, signature, said, claimed } = await c.req.json()
+  try {
+    check('say something', String(wallet), String(issuedAt), String(signature))
+    const line =
+      claimed === undefined || claimed === null
+        ? await say(String(wallet), String(said ?? ''))
+        : await announceClaim(String(wallet), Number(claimed))
+    return c.json({ line })
+  } catch (err) {
+    if (err instanceof ProofError || err instanceof RoomError) return c.json({ error: err.message }, 400)
+    console.error('[community]', err)
+    return c.json({ error: 'could not post that' }, 500)
   }
 })
 

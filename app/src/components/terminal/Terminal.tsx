@@ -128,7 +128,7 @@ export function Terminal({ onTint }: { onTint: (colour: string) => void }) {
             </div>
             {joined && (
               <div hidden={tab !== 'community'}>
-                <CommunityPane key={sessions.community} active={tab === 'community'} />
+                <CommunityPane key={sessions.community} active={tab === 'community'} run={run} />
               </div>
             )}
           </div>

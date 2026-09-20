@@ -151,8 +151,20 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
         ? []
         : [
             { key: 'calendar', label: 'calendar', onClick: () => open('calendar') },
-            { key: 'shells', label: shellsDone === null ? 'weeks' : 'edit weeks', onClick: () => open('shells') },
-            { key: 'stake', label: stakeDone === null ? 'stake' : 'edit stake', onClick: () => open('stake') },
+            // Green is the next thing to do and only ever one thing: weeks, then stake, then
+            // pay. A bar where everything is green says nothing about where to start.
+            {
+              key: 'shells',
+              label: shellsDone === null ? 'weeks' : 'edit weeks',
+              tone: shellsDone === null && !run.run ? ('yes' as const) : undefined,
+              onClick: () => open('shells'),
+            },
+            {
+              key: 'stake',
+              label: stakeDone === null ? 'stake' : 'edit stake',
+              tone: shellsDone !== null && stakeDone === null && !run.run ? ('yes' as const) : undefined,
+              onClick: () => open('stake'),
+            },
             ...(ready
               ? [
                   ...(paid.kind === 'agreeing'

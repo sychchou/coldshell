@@ -84,6 +84,34 @@ async function signed<T>(
   })
 }
 
+export type Line = {
+  who: string
+  wallet: string
+  said: string
+  at: number
+  /** A claim the chain confirmed, rather than something somebody typed. */
+  claimed?: number
+}
+
+export const readRoom = async () => {
+  const response = await fetch('/api/community')
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(json.error ?? 'could not read the room')
+  return (json.lines ?? []) as Line[]
+}
+
+export const sayInRoom = (
+  wallet: string,
+  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
+  said: string,
+) => signed<{ line: Line }>('say something', wallet, signMessage, '/api/community', { said })
+
+export const announceClaim = (
+  wallet: string,
+  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
+  claimed: number,
+) => signed<{ line: Line | null }>('say something', wallet, signMessage, '/api/community', { claimed })
+
 export const keptClips = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
   signed<{ clips: Kept[] }>('show me my clips', wallet, signMessage, '/api/clips')
 
