@@ -60,28 +60,35 @@ export function useScrollOutput(deps: unknown[]) {
 export function ChipBar({ commands, onReset }: { commands: Commands; onReset: () => void }) {
   const { chips, back } = commands
 
+  const bar = useRef<HTMLDivElement>(null)
+
   /**
-   * Enter runs whatever is green.
+   * Enter presses whatever is green.
    *
-   * Green already means the one thing to do next, so the key everybody presses to say yes ought
-   * to do it. Not while typing: a line being written has its own idea of what Enter means.
+   * It clicks the element rather than calling the handler, because some chips are links and
+   * calling their handler alone would mark the rules as read without opening them — which is
+   * the one thing that step exists to prevent.
+   *
+   * Not while typing: a line being written has its own idea of what Enter means.
    */
   useEffect(() => {
     const go = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      const green = chips.find((chip) => chip.tone === 'yes' && !chip.disabled && chip.onClick)
+      const green = chips.find((chip) => chip.tone === 'yes' && !chip.disabled)
       if (!green) return
+      const element = bar.current?.querySelector<HTMLElement>(`[data-chip="${green.key}"]`)
+      if (!element) return
       event.preventDefault()
-      green.onClick?.()
+      element.click()
     }
     window.addEventListener('keydown', go)
     return () => window.removeEventListener('keydown', go)
   }, [chips])
 
   return (
-    <div className="chip-bar">
+    <div className="chip-bar" ref={bar}>
       <button
         type="button"
         className="chip chip-fixed"
@@ -97,6 +104,7 @@ export function ChipBar({ commands, onReset }: { commands: Commands; onReset: ()
           chip.href ? (
             <a
               key={chip.key}
+              data-chip={chip.key}
               className="chip"
               href={chip.href}
               target="_blank"
@@ -109,6 +117,7 @@ export function ChipBar({ commands, onReset }: { commands: Commands; onReset: ()
           ) : (
             <button
               key={chip.key}
+              data-chip={chip.key}
               type="button"
               className="chip"
               data-tone={chip.tone}
