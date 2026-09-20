@@ -944,7 +944,7 @@ export type Coldshell = {
     {
       "name": "claimWindowSeconds",
       "type": "i64",
-      "value": "2419200"
+      "value": "16800"
     },
     {
       "name": "daysPerShell",
@@ -954,7 +954,7 @@ export type Coldshell = {
     {
       "name": "daySeconds",
       "type": "i64",
-      "value": "86400"
+      "value": "600"
     },
     {
       "name": "maxShells",
@@ -983,12 +983,12 @@ export type Coldshell = {
     {
       "name": "recordEarlySeconds",
       "type": "i64",
-      "value": "50400"
+      "value": "350"
     },
     {
       "name": "recordLateSeconds",
       "type": "i64",
-      "value": "172800"
+      "value": "1200"
     },
     {
       "name": "runSeed",
@@ -1001,7 +1001,7 @@ export type Coldshell = {
     {
       "name": "shellEpochTs",
       "type": "i64",
-      "value": "1789344000"
+      "value": "1789866000"
     },
     {
       "name": "startGraceSeconds",
@@ -1011,7 +1011,7 @@ export type Coldshell = {
         "\"at most six days of waiting\" comes from."
       ],
       "type": "i64",
-      "value": "86400"
+      "value": "600"
     },
     {
       "name": "treasury",
@@ -1032,7 +1032,7 @@ export type Coldshell = {
     {
       "name": "weekSeconds",
       "type": "i64",
-      "value": "604800"
+      "value": "4200"
     }
   ]
 };

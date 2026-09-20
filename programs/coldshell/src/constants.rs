@@ -45,8 +45,11 @@ mod clock {
 
 #[cfg(feature = "short-clock")]
 mod clock {
-    /// Saturday 2026-09-19 00:00 UTC, so test shell numbers stay small.
-    pub const SHELL_EPOCH_TS: i64 = 1_789_776_000;
+    /// Moved to the morning of whatever day the run-through is, so that shell #1 starts within
+    /// minutes of the build and the ten-minute joining grace can actually be caught. A whole run
+    /// is seventy minutes; waiting most of one for a boundary is most of the test.
+    /// Sunday 2026-09-20 01:00 UTC.
+    pub const SHELL_EPOCH_TS: i64 = 1_789_866_000;
     pub const DAY_SECONDS: i64 = 10 * 60;
     pub const RECORD_EARLY_SECONDS: i64 = 350;
     pub const RECORD_LATE_SECONDS: i64 = 20 * 60;

@@ -938,7 +938,7 @@
     {
       "name": "CLAIM_WINDOW_SECONDS",
       "type": "i64",
-      "value": "2419200"
+      "value": "16800"
     },
     {
       "name": "DAYS_PER_SHELL",
@@ -948,7 +948,7 @@
     {
       "name": "DAY_SECONDS",
       "type": "i64",
-      "value": "86400"
+      "value": "600"
     },
     {
       "name": "MAX_SHELLS",
@@ -977,12 +977,12 @@
     {
       "name": "RECORD_EARLY_SECONDS",
       "type": "i64",
-      "value": "50400"
+      "value": "350"
     },
     {
       "name": "RECORD_LATE_SECONDS",
       "type": "i64",
-      "value": "172800"
+      "value": "1200"
     },
     {
       "name": "RUN_SEED",
@@ -995,7 +995,7 @@
     {
       "name": "SHELL_EPOCH_TS",
       "type": "i64",
-      "value": "1789344000"
+      "value": "1789866000"
     },
     {
       "name": "START_GRACE_SECONDS",
@@ -1005,7 +1005,7 @@
         "\"at most six days of waiting\" comes from."
       ],
       "type": "i64",
-      "value": "86400"
+      "value": "600"
     },
     {
       "name": "TREASURY",
@@ -1026,7 +1026,7 @@
     {
       "name": "WEEK_SECONDS",
       "type": "i64",
-      "value": "604800"
+      "value": "4200"
     }
   ]
 }

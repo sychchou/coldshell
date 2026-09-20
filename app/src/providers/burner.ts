@@ -34,7 +34,7 @@ function load() {
 
 export class BurnerWalletAdapter extends BaseSignerWalletAdapter {
   name = 'Burner (dev)' as WalletName<'Burner (dev)'>
-  url = 'https://github.com/suaacho/coldshell'
+  url = 'https://github.com/sychchou/coldshell'
   icon = ICON
   supportedTransactionVersions = null
   readonly readyState = WalletReadyState.Loadable
