@@ -2148,6 +2148,12 @@ button.nav-link:focus-visible {
   outline: none;
 }
 
+/* What the line is waiting for, standing where the answer will go and stepping aside for it. */
+.term-hint {
+  margin-left: 0.6em;
+  color: var(--muted-text);
+}
+
 .term-cursor {
   width: 0.6em;
   height: 1.1em;
@@ -2163,7 +2169,13 @@ button.nav-link:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .term-cursor {
+  /* What the line is waiting for, standing where the answer will go and stepping aside for it. */
+.term-hint {
+  margin-left: 0.6em;
+  color: var(--muted-text);
+}
+
+.term-cursor {
     animation: none;
   }
 }

@@ -10,7 +10,7 @@ import {
   explorerTxUrl,
 } from '../../config'
 import { enterTx, sendPrepared } from '../../lib/api'
-import { startingShell } from '../../lib/shell'
+import { mondayOfShell, startingShell } from '../../lib/shell'
 import type { RunView } from '../../lib/useRun'
 import { useCommands, useScrollOutput } from './chips'
 import { ShellCalendar } from './ShellCalendar'
@@ -39,15 +39,26 @@ function checkStake(value: string) {
   return null
 }
 
+/** The dates a run of shells actually covers, because a shell number is not a date. */
+function span(first: number, shells: number) {
+  const day = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
+  const from = mondayOfShell(first)
+  const to = new Date(mondayOfShell(first + shells).getTime() - 60_000)
+  return `${day(from)} – ${day(to)}`
+}
+
 /** A line you type into. The caret is drawn rather than the browser's, to match everything else. */
 function Prompt({
   label,
+  hint,
   value,
   onChange,
   onDone,
   onCancel,
 }: {
   label: string
+  /** What a valid answer looks like, standing where the answer will go. */
+  hint: string
   value: string
   onChange: (value: string) => void
   onDone: () => void
@@ -71,6 +82,7 @@ function Prompt({
         }}
       />
       <span className="term-cursor" aria-hidden="true" />
+      {!value && <span className="term-hint">{hint}</span>}
     </p>
   )
 }
@@ -150,13 +162,19 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
       chips: editing
         ? []
         : [
-            { key: 'calendar', label: 'calendar', onClick: () => open('calendar') },
+            {
+              key: 'calendar',
+              label: 'calendar',
+              // The first thing worth doing is seeing which weeks are on offer.
+              tone: !order.includes('calendar') && !run.run ? ('yes' as const) : undefined,
+              onClick: () => open('calendar'),
+            },
             // Green is the next thing to do and only ever one thing: weeks, then stake, then
             // pay. A bar where everything is green says nothing about where to start.
             {
               key: 'shells',
               label: shellsDone === null ? 'weeks' : 'edit weeks',
-              tone: shellsDone === null && !run.run ? ('yes' as const) : undefined,
+              tone: order.includes('calendar') && shellsDone === null && !run.run ? ('yes' as const) : undefined,
               onClick: () => open('shells'),
             },
             {
@@ -211,6 +229,7 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
         {entry.editing ? (
           <Prompt
             label={label}
+            hint={field === 'shells' ? `${MIN_SHELLS}–${MAX_SHELLS}` : `${MIN_STAKE}–${MAX_STAKE}`}
             value={entry.value}
             onChange={(value) =>
               field === 'shells' ? setShells({ value, editing: true }) : setStake({ value, editing: true })
@@ -229,7 +248,7 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
             {shellsDone === 1
               ? `shell ${first}`
               : `shell ${first} – shell ${first + shellsDone - 1}`}{' '}
-            · {shellsDone * DAYS_PER_SHELL} days
+            · {shellsDone * DAYS_PER_SHELL} days ({span(first, shellsDone)})
           </p>
         )}
         {!entry.editing && !problem && field === 'stake' && stakeDone !== null && (
