@@ -5,6 +5,7 @@ import {
   MAX_SHELLS,
   MAX_STAKE_USDC,
   MIN_STAKE_USDC,
+  RULES_URL,
   USDC_DECIMALS,
   explorerTxUrl,
 } from '../../config'
@@ -76,6 +77,8 @@ function Prompt({
 
 type Payment =
   | { kind: 'idle' }
+  /** The last thing before the money moves: the terms, and whether they were read. */
+  | { kind: 'agreeing' }
   | { kind: 'paying' }
   | { kind: 'paid'; signature: string; firstShell: number }
   | { kind: 'error'; message: string }
@@ -152,13 +155,27 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
             { key: 'stake', label: stakeDone === null ? 'stake' : 'edit stake', onClick: () => open('stake') },
             ...(ready
               ? [
-                  {
-                    key: 'pay',
-                    label: paid.kind === 'paying' ? 'paying…' : 'pay',
-                    tone: 'yes' as const,
-                    onClick: pay,
-                    disabled: !publicKey || paid.kind !== 'idle' || Boolean(run.run),
-                  },
+                  ...(paid.kind === 'agreeing'
+                    ? [
+                        { key: 'rules', label: 'rules', href: RULES_URL },
+                        { key: 'agree', label: 'y', tone: 'yes' as const, onClick: pay },
+                        {
+                          key: 'decline',
+                          label: 'n',
+                          tone: 'no' as const,
+                          onClick: () => setPaid({ kind: 'idle' }),
+                        },
+                      ]
+                    : [
+                        {
+                          key: 'pay',
+                          label: paid.kind === 'paying' ? 'paying…' : 'pay',
+                          tone: 'yes' as const,
+                          // Reading comes before paying, and the reading is one click away.
+                          onClick: () => setPaid({ kind: 'agreeing' }),
+                          disabled: !publicKey || paid.kind !== 'idle' || Boolean(run.run),
+                        },
+                      ]),
                 ]
               : []),
           ],
@@ -231,6 +248,19 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
       {paid.kind !== 'idle' && (
         <div className="term-entry">
           <p className="term-prompt">pay</p>
+          {paid.kind === 'agreeing' && (
+            <>
+              <p className="term-line">
+                {stakeDone !== null && shellsDone !== null
+                  ? `$${stakeDone} for shell ${first}${shellsDone > 1 ? ` – ${first + shellsDone - 1}` : ''}. a week you finish comes back whole; a week with a day missing does not come back at all.`
+                  : 'a week you finish comes back whole; a week with a day missing does not come back at all.'}
+              </p>
+              <p className="term-line">have you read the rules, and do you agree to them?</p>
+              <p className="term-line term-dim">
+                y — place the stake · n — not yet · rules — read them first
+              </p>
+            </>
+          )}
           {paid.kind === 'paying' && (
             <p className="term-line term-dim">approve it in your wallet…</p>
           )}

@@ -49,8 +49,8 @@ export function Calendar({
   runs: Run[]
   focus: Run | null
   now: number
-  selected: Cell | null
-  onSelect: (cell: Cell) => void
+  selected: number | null
+  onSelect: (shell: number) => void
 }) {
   return (
     <div className="cal">
@@ -78,31 +78,36 @@ export function Calendar({
           : totals.done
         const expected = mine ? DAYS_PER_SHELL : totals.expected
         return (
-          <div className="cal-row" key={row.shell}>
-            <span className="cal-gutter">
+          <div className="cal-row" key={row.shell} data-picked={selected === row.shell || undefined}>
+            <button
+              type="button"
+              className="cal-gutter cal-pick"
+              aria-pressed={selected === row.shell}
+              onClick={() => onSelect(row.shell)}
+            >
               <b>{row.shell > 0 ? `#${row.shell}` : '—'}</b>
               <small>{(focus ? mine !== null : totals.runs > 0) ? `${done}/${expected}` : ''}</small>
-            </span>
+            </button>
 
             {row.cells.map((cell) => {
               const { mark, note } = markOf(cell, runs, focus, now)
               const isToday = now >= cell.ms && now < cell.ms + (rows[0].cells[1].ms - rows[0].cells[0].ms)
               return (
-                <button
-                  type="button"
+                // A day is shown, not opened. What a week did is the question worth a panel;
+                // what one day did is already on the block.
+                <span
                   key={cell.ms}
                   className="cal-day"
                   data-mark={mark}
                   data-muted={cell.muted || undefined}
                   data-today={isToday || undefined}
-                  aria-pressed={selected?.ms === cell.ms}
-                  onClick={() => onSelect(cell)}
+                  title={note}
                 >
                   <span className="cal-date">
                     {SHORT_CLOCK ? stamp(cell.ms).slice(-5) : new Date(cell.ms).getUTCDate()}
                   </span>
                   {note && <span className="cal-note">{note}</span>}
-                </button>
+                </span>
               )
             })}
 

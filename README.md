@@ -2,61 +2,82 @@
 
 **you vs you**
 
-Put money on a period of your own life, and prove you showed up for it.
+Stake what would hurt to lose. Record a minute of yourself every day. Nobody watches it. Finish
+the week and every cent comes back, along with the film.
 
-You stake USDC and enter a **shell** — seven days, or a month. Every day inside it you record
-at least one minute of yourself and say that day's code out loud. Nobody watches it. Finish
-every day and you get your stake back in full, along with every clip you made, stitched into
-one film.
+## How it works
 
-Quit, and your stake stays behind.
+You stake USDC on a run of **shells**. A shell is a calendar week — Monday to Sunday — numbered
+globally, so everyone in shell #37 is in the same week whatever their run. A run is 1 to 10 of
+them, and $10 to $200.
+
+Every day, you record at least one minute of video in the browser. That is the whole obligation:
+no subject, no length beyond the minute, nothing to prove.
+
+Each week settles on its own. Record all seven days and that week's share comes back **whole** —
+not a cent more, because there is no pool and nothing to win from anyone else. Miss a day and
+that week is gone. The other weeks are untouched.
+
+At the end, every minute you recorded is joined into one film.
+
+## Nobody watches it
+
+There is no verification. No transcription, no review, no oracle, no keyword to say out loud.
+
+That is a consequence, not a shortcut. Because finishing returns exactly what you staked, and
+nothing is redistributed, cheating costs only the cheater — so there is nothing for verification
+to protect. Once that is true, the video never has to be read by anyone, which is the only
+version of "we don't watch it" worth saying.
 
 ## Why a chain is involved
 
-Two jobs, both real:
+Our only income is the stake of somebody who did not finish. **We make money when you fail.**
 
-- **Escrow.** Your stake sits in a program, not in our bank account. We cannot spend it.
-- **Timestamps.** Each day's video hash is written on chain the day it is made. That makes the
-  final film impossible to backdate — anyone can check that the clip you claim to have recorded
-  on the third day really did exist on the third day.
+That is exactly why the record of what you did is not in our database. Each recording's hash goes
+on chain with the moment it arrived, in a program we cannot edit, holding money we cannot spend.
+The arrangement is not there because it is fashionable; it is there because the person keeping
+score has a reason to want you to lose.
 
-Both matter more than they look. Our only income is the stakes of people who did not finish —
-which means we have a financial reason to want you to fail. Putting the record somewhere we
-cannot edit is what makes that harmless.
+Every fee and every lamport of rent is ours. A participant never needs SOL — only USDC, and only
+once.
 
-## The daily code
+## The clock
 
-Two English words, derived from the blockhash at the start of the day:
+- A day may be recorded **from 14 hours before it starts to 48 hours after**. The 14 hours cover
+  the gap between the day you are living and the UTC the chain knows; the 48 are a day of grace,
+  because one bad evening should not cost a week.
+- A week **settles one day after it ends**, since Sunday's minute is still allowed through Monday.
+- A finished week can be claimed for **four weeks**. After that the platform may take it.
+- You cannot join a week already under way. Pay by Sunday midnight; your run starts Monday.
 
-```
-seed  = sha256(challenge ‖ day ‖ blockhash at 00:00 UTC)
-word1 = WORDLIST[u16(seed[0..2]) % len]
-word2 = WORDLIST[u16(seed[2..4]) % len]
-```
-
-Nobody picks it, including us, and anyone can recompute it. Because the code only exists on
-the day it belongs to, a week of clips cannot be filmed in advance.
-
-Say it in the first 15 seconds. A machine transcribes the audio and looks for the two words;
-no person watches the video. Failed to be heard? Upload again, as many times as you like,
-until the day is over.
-
-## The money
-
-- Finish every day → **100% of your stake back**. No fee.
-- Network fees are ours. You never need SOL.
-- Stakes left behind by people who did not finish pay for keeping and stitching everyone
-  else's footage.
-
-There is no prize pool and nothing to win from anyone else. You are not competing.
+[RULES.md](RULES.md) has all of it, and every number in it is a constant the program enforces.
 
 ## Layout
 
-- `programs/coldshell` — the Anchor program: stake, daily record, refund
-- `server` — the API: today's code, upload, transcription check, oracle signing
-- `app` — the site: one terminal window
+| | |
+|---|---|
+| [`programs/coldshell`](programs/coldshell) | the Anchor program: `enter`, `record_day`, `claim`, `sweep`, `close` |
+| [`server`](server) | the API: transactions the platform pays for, the clips, the film |
+| [`app`](app) | the site: one terminal window, and a back room at `/staff` |
+
+The app reads every duration and bound from the program's IDL, so the screen cannot promise terms
+the chain would refuse.
+
+## Running it
+
+```bash
+anchor build && cargo test          # the program and its 42 tests
+bash scripts/local-demo.sh          # a local chain on a ten-minute day, with runs to look at
+npm --prefix server run dev         # the API
+npm --prefix app run dev            # the site
+```
+
+`scripts/local-demo.sh` builds with the `short-clock` feature, which shrinks a day to ten minutes
+and a week to seventy, so a whole run can be walked through in an hour. A deployed program is one
+clock or the other; there is no switch afterwards.
 
 ## Status
 
-Rebuilt from [proof-of-grind](https://github.com/sychchou/proof-of-grind), which measured camera
-time in a Discord room. Same escrow, a different kind of proof. Nothing here has shipped yet.
+Devnet. Rebuilt from [proof-of-grind](https://github.com/sychchou/proof-of-grind), which counted
+camera time in a Discord room — same escrow, a different kind of proof, and this time no proof at
+all beyond the fact that you showed up.

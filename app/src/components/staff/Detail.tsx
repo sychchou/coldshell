@@ -1,104 +1,112 @@
-import { CLAIM_WINDOW_MS, DAYS_PER_SHELL, RECORD_LATE_MS } from '../../config'
-import { dayFacts, shellTotals, type Cell } from '../../lib/board'
-import { shellEnd, shellSettles, shellStart, shellState, type Run } from '../../lib/runs'
+import { CLAIM_WINDOW_MS, DAYS_PER_SHELL } from '../../config'
+import { covers, shellTotals } from '../../lib/board'
+import { shellEnd, shellSettles, shellStart, shellState, share, type Run } from '../../lib/runs'
 import { short, span, stamp, usd, utc } from './format'
 
 /**
- * Whatever is under the cursor, in words. A day on the board answers "who did this one", which
- * is the question a count can raise but never settle.
+ * A week, in words.
+ *
+ * The board already says what each day did — a block is a day and its colour is the answer. What
+ * it cannot say is who is in the week, what the week is worth, and which way the money is about
+ * to go. That is what a panel is for.
  */
 export function Detail({
-  cell,
+  shell,
   runs,
   now,
   onFocus,
 }: {
-  cell: Cell | null
+  shell: number | null
   runs: Run[]
   now: number
   onFocus: (run: Run) => void
 }) {
-  if (!cell) {
+  if (shell === null) {
     return (
       <aside className="detail">
-        <p className="detail-empty">pick a day</p>
+        <p className="detail-empty">pick a week</p>
       </aside>
     )
   }
 
-  if (cell.shell < 1) {
+  if (shell < 1) {
     return (
       <aside className="detail">
-        <h2>{utc(cell.ms, false)}</h2>
+        <h2>shell {shell}</h2>
         <p className="detail-empty">before shell #1</p>
       </aside>
     )
   }
 
-  const totals = shellTotals(runs, cell.shell, now)
-  const facts = dayFacts(runs, cell, now).sort((a, b) => Number(b.done) - Number(a.done))
-  const ahead = cell.ms > now
+  const totals = shellTotals(runs, shell, now)
+  const inside = runs.filter((run) => covers(run, shell))
+  const settles = shellSettles(shell)
 
   return (
     <aside className="detail">
-      <h2>{utc(cell.ms, false)}</h2>
+      <h2>shell #{shell}</h2>
       <p className="detail-sub">
-        shell #{cell.shell} · day {cell.dayOfShell + 1} of {DAYS_PER_SHELL}
+        {utc(shellStart(shell), false)} → {utc(shellEnd(shell) - 60_000, false)}
       </p>
 
       <dl className="detail-rows">
-        <dt>the week</dt>
-        <dd>
-          {stamp(shellStart(cell.shell))} → {stamp(shellEnd(cell.shell) - 60_000)}
-        </dd>
         <dt>settles</dt>
         <dd>
-          {stamp(shellSettles(cell.shell))}
-          {now < shellSettles(cell.shell) && <small> · in {span(shellSettles(cell.shell) - now)}</small>}
+          {stamp(settles)}
+          <small> · {now < settles ? `in ${span(settles - now)}` : `${span(now - settles)} ago`}</small>
         </dd>
         <dt>claim until</dt>
-        <dd>{stamp(shellSettles(cell.shell) + CLAIM_WINDOW_MS)}</dd>
+        <dd>{stamp(settles + CLAIM_WINDOW_MS)}</dd>
+        <dt>days in</dt>
+        <dd>
+          {totals.done}/{totals.expected}
+        </dd>
+        <dt>back / kept / held</dt>
+        <dd>
+          {usd(totals.returned)} · {usd(totals.collected)} · {usd(totals.locked)}
+        </dd>
+        {totals.sweepable > 0 && (
+          <>
+            <dt>sweepable</dt>
+            <dd className="warn">
+              {totals.sweepable} shell{totals.sweepable > 1 ? 's' : ''}
+            </dd>
+          </>
+        )}
       </dl>
 
-      {totals.runs > 0 && (
-        <dl className="detail-rows">
-          <dt>in this shell</dt>
-          <dd>
-            {totals.runs} run{totals.runs > 1 ? 's' : ''} · {totals.done}/{totals.expected} days
-          </dd>
-          <dt>back / kept / held</dt>
-          <dd>
-            {usd(totals.returned)} · {usd(totals.collected)} · {usd(totals.locked)}
-          </dd>
-        </dl>
-      )}
-
       <h3>
-        {ahead ? 'who will owe this day' : 'who owes this day'} · {facts.filter((f) => f.done).length}/{facts.length}
+        who is in it · {inside.length} run{inside.length === 1 ? '' : 's'}
       </h3>
-      {facts.length === 0 ? (
+      {inside.length === 0 ? (
         <p className="detail-empty">nobody is in this week</p>
       ) : (
         <ul className="detail-list">
-          {facts.map(({ run, done, open }) => (
-            <li key={run.address.toString()}>
-              <button type="button" className="link" onClick={() => onFocus(run)}>
-                {short(run.user)}
-              </button>
-              <span
-                className="detail-state"
-                data-mark={done ? 'done' : ahead ? 'ahead' : open ? 'open' : 'missed'}
-              >
-                {done ? 'recorded' : ahead ? 'not yet' : open ? 'still open' : 'missed'}
-              </span>
-              <span className="detail-dim">
-                {shellState(run, cell.shell - run.firstShell, now)}
-                {!done && !ahead && open && ` · closes ${stamp(cell.ms + RECORD_LATE_MS)}`}
-              </span>
-            </li>
-          ))}
+          {inside.map((run) => {
+            const offset = shell - run.firstShell
+            const state = shellState(run, offset, now)
+            const days = [...Array(DAYS_PER_SHELL)].filter(
+              (_, i) => ((run.days >> BigInt(offset * DAYS_PER_SHELL + i)) & 1n) === 1n,
+            ).length
+            return (
+              <li key={run.address.toString()}>
+                <button type="button" className="link" onClick={() => onFocus(run)}>
+                  {short(run.user)}
+                </button>
+                <span className="detail-state" data-mark={mark(state)}>
+                  {state}
+                </span>
+                <span className="detail-dim">
+                  {days}/{DAYS_PER_SHELL} days · {usd(share(run, offset))}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </aside>
   )
 }
+
+const mark = (state: string) =>
+  state === 'returned' || state === 'claimable' ? 'done' : state === 'open' ? 'open' : 'missed'

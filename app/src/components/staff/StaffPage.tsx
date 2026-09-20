@@ -3,10 +3,11 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Transaction } from '@solana/web3.js'
 import { DAYS_PER_SHELL, DAY_MS, NETWORK_LABEL, RPC_ENDPOINT, SHORT_CLOCK, TREASURY, explorerUrl } from '../../config'
-import { monthRows, shellRows, standing, type Cell } from '../../lib/board'
+import { monthRows, shellRows, standing } from '../../lib/board'
 import { closeIx, currentShell, fetchRuns, shellStart, sweepIx, type Run } from '../../lib/runs'
 import { usdcAta } from '../../lib/program'
 import { Calendar } from './Calendar'
+import { Faucet } from './Faucet'
 import { Detail } from './Detail'
 import { RunsTable } from './RunsTable'
 import { MONTHS, local, span, usd, utc } from './format'
@@ -34,10 +35,12 @@ export function StaffPage() {
   const [now, setNow] = useState(() => Date.now())
   // Open on the weeks just behind us, where the money that needs deciding sits.
   const [anchor, setAnchor] = useState(() => home())
-  const [selected, setSelected] = useState<Cell | null>(null)
+  const [selected, setSelected] = useState<number | null>(null)
   // The focused run is held by address, not by value: a refresh hands back new objects, and a
   // stored snapshot would quietly go stale the first time anything on chain moved.
   const [focused, setFocused] = useState<string | null>(null)
+
+  const [purse, setPurse] = useState<bigint | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -55,6 +58,19 @@ export function StaffPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // What is left to hand out, read from the connected wallet rather than remembered.
+  const readPurse = useCallback(async () => {
+    if (!publicKey) return setPurse(null)
+    const balance = await connection
+      .getTokenAccountBalance(usdcAta(publicKey))
+      .catch(() => null)
+    setPurse(balance ? BigInt(balance.value.amount) : 0n)
+  }, [connection, publicKey])
+
+  useEffect(() => {
+    void readPurse()
+  }, [readPurse])
 
   // The board is all deadlines, so it has to move on its own.
   useEffect(() => {
@@ -139,13 +155,13 @@ export function StaffPage() {
       <section className="tiles">
         <Tile label="runs" value={String(book.runs)} note={`${book.open} still going`} />
         <Tile label="held in vaults" value={usd(book.locked)} note="nobody's yet" />
-        <Tile label="given back" value={usd(book.returned)} note="weeks finished" />
-        <Tile label="kept" value={usd(book.collected)} note="weeks forfeited" />
+        <Tile label="given back" value={usd(book.returned)} note="weeks finished" flow="out" />
+        <Tile label="kept" value={usd(book.collected)} note="weeks forfeited" flow="in" />
         <Tile
           label="ready to sweep"
           value={usd(book.sweepable.reduce((sum, s) => sum + s.amount, 0n))}
-          note={`${book.sweepable.length} shell${book.sweepable.length === 1 ? '' : 's'}`}
-          warn={book.sweepable.length > 0}
+          note={`${book.sweepable.length} shell${book.sweepable.length === 1 ? '' : 's'} waiting`}
+          flow={book.sweepable.length > 0 ? 'in' : undefined}
         />
         <Tile
           label="ready to close"
@@ -189,8 +205,10 @@ export function StaffPage() {
             <i data-mark="ahead" /> not yet
           </p>
         </div>
-        <Detail cell={selected} runs={runs} now={now} onFocus={setFocus} />
+        <Detail shell={selected} runs={runs} now={now} onFocus={setFocus} />
       </section>
+
+      <Faucet balance={purse} onSent={() => void readPurse()} />
 
       <section className="board-runs">
         <h2>runs</h2>
@@ -212,9 +230,26 @@ export function StaffPage() {
   )
 }
 
-function Tile({ label, value, note, warn }: { label: string; value: string; note: string; warn?: boolean }) {
+/**
+ * One number. `flow` says which way the money went, from the platform's side of the table:
+ * `in` is what it kept, `out` is what it gave back. Everything else is nobody's yet and takes
+ * no colour at all.
+ */
+function Tile({
+  label,
+  value,
+  note,
+  warn,
+  flow,
+}: {
+  label: string
+  value: string
+  note: string
+  warn?: boolean
+  flow?: 'in' | 'out'
+}) {
   return (
-    <div className="tile" data-warn={warn || undefined}>
+    <div className="tile" data-warn={warn || undefined} data-flow={flow}>
       <span className="tile-label">{label}</span>
       <strong className="tile-value">{value}</strong>
       <span className="tile-note">{note}</span>

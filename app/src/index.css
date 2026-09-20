@@ -1035,6 +1035,22 @@ button.nav-link:focus-visible {
   color: var(--error);
 }
 
+/* Which way the money went, from this side of the table. Held money belongs to nobody yet and
+   is left the colour of plain text. */
+.tile[data-flow='in'] .tile-value {
+  color: var(--ok);
+}
+
+.tile[data-flow='out'] .tile-value {
+  color: var(--error);
+}
+
+.tile[data-flow]::before {
+  content: attr(data-flow);
+  position: absolute;
+  clip-path: inset(50%);
+}
+
 .tile-note {
   color: var(--muted-text);
 }
@@ -1148,6 +1164,28 @@ button.nav-link:focus-visible {
 
 .cal-gutter small {
   color: var(--muted-text);
+}
+
+/* The gutter is the only thing on a row you can press: a week is what opens. */
+.cal-pick {
+  border: 0;
+  border-left: 2px solid transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-pick:hover {
+  background: color-mix(in srgb, var(--cyan) 7%, var(--panel));
+}
+
+.cal-row[data-picked] .cal-pick {
+  border-left-color: var(--command);
+  color: var(--command);
+}
+
+.cal-row[data-picked] .cal-day {
+  background: color-mix(in srgb, var(--command) 8%, var(--panel));
 }
 
 .cal-day {
@@ -1333,6 +1371,55 @@ button.nav-link:focus-visible {
 .detail-dim {
   grid-column: 1 / -1;
   color: var(--muted-text);
+}
+
+/* Handing test money to a tester: an address, an amount, and the purse it comes out of. */
+.faucet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.faucet p {
+  margin: 0;
+}
+
+.faucet code {
+  font-family: var(--mono);
+}
+
+.faucet-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.faucet input {
+  padding: 5px 9px;
+  border: 1px solid var(--muted-border);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-family: var(--mono);
+}
+
+.faucet input:focus-visible {
+  outline: 1px solid var(--command);
+  border-color: var(--command);
+}
+
+.faucet-to {
+  flex: 1 1 24ch;
+  min-width: 0;
+}
+
+.faucet-amount {
+  width: 8ch;
+  text-align: right;
 }
 
 /* ── Every run ───────────────────────────────────────────────────────────── */
