@@ -100,17 +100,12 @@ export const readRoom = async () => {
   return (json.lines ?? []) as Line[]
 }
 
-export const sayInRoom = (
-  wallet: string,
-  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
-  said: string,
-) => signed<{ line: Line }>('say something', wallet, signMessage, '/api/community', { said })
+/** No signature: a popup per line would make the room unusable, and the name is public anyway. */
+export const sayInRoom = (wallet: string, said: string) =>
+  post<{ line: Line }>('/api/community', { wallet, said })
 
-export const announceClaim = (
-  wallet: string,
-  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
-  claimed: number,
-) => signed<{ line: Line | null }>('say something', wallet, signMessage, '/api/community', { claimed })
+export const announceClaim = (wallet: string, claimed: number) =>
+  post<{ line: Line | null }>('/api/community', { wallet, claimed })
 
 export const keptClips = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
   signed<{ clips: Kept[] }>('show me my clips', wallet, signMessage, '/api/clips')

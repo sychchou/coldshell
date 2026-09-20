@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import {
   DAYS_PER_SHELL,
@@ -13,6 +13,7 @@ import { enterTx, sendPrepared } from '../../lib/api'
 import { mondayOfShell, startingShell } from '../../lib/shell'
 import type { RunView } from '../../lib/useRun'
 import { useCommands, useScrollOutput } from './chips'
+import { Prompt } from './Prompt'
 import { ShellCalendar } from './ShellCalendar'
 
 // The bounds come out of the program, so the screen cannot promise terms it would then refuse.
@@ -45,46 +46,6 @@ function span(first: number, shells: number) {
   const from = mondayOfShell(first)
   const to = new Date(mondayOfShell(first + shells).getTime() - 60_000)
   return `${day(from)} – ${day(to)}`
-}
-
-/** A line you type into. The caret is drawn rather than the browser's, to match everything else. */
-function Prompt({
-  label,
-  hint,
-  value,
-  onChange,
-  onDone,
-  onCancel,
-}: {
-  label: string
-  /** What a valid answer looks like, standing where the answer will go. */
-  hint: string
-  value: string
-  onChange: (value: string) => void
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => ref.current?.focus(), [])
-  return (
-    <p className="term-input">
-      <span className="term-input-label">{label}&gt;</span>
-      <input
-        ref={ref}
-        value={value}
-        inputMode="numeric"
-        spellCheck={false}
-        style={{ width: `${Math.max(1, value.length)}ch` }}
-        onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, ''))}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onDone()
-          if (e.key === 'Escape') onCancel()
-        }}
-      />
-      <span className="term-cursor" aria-hidden="true" />
-      {!value && <span className="term-hint">{hint}</span>}
-    </p>
-  )
 }
 
 type Payment =
@@ -229,6 +190,7 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
         {entry.editing ? (
           <Prompt
             label={label}
+            digits
             hint={field === 'shells' ? `${MIN_SHELLS}–${MAX_SHELLS}` : `${MIN_STAKE}–${MAX_STAKE}`}
             value={entry.value}
             onChange={(value) =>

@@ -86,21 +86,21 @@ app.get('/api/community', async (c) => {
 /**
  * Saying something, or announcing a week that came back.
  *
- * Signed, because a line here carries a name and the name is somebody's wallet. A claim is
- * checked against the chain as well: it is the one line in the room that reads as a fact, so it
- * had better be one.
+ * Deliberately unsigned. A wallet popup for every line would make the room unusable, and what a
+ * signature would buy here is small: the name is four characters of a public address, and only
+ * an address with a run can appear at all. The one line that reads as a fact — a week coming
+ * back — is checked against the chain instead, which no signature could improve on.
  */
 app.post('/api/community', async (c) => {
-  const { wallet, issuedAt, signature, said, claimed } = await c.req.json()
+  const { wallet, said, claimed } = await c.req.json()
   try {
-    check('say something', String(wallet), String(issuedAt), String(signature))
     const line =
       claimed === undefined || claimed === null
         ? await say(String(wallet), String(said ?? ''))
         : await announceClaim(String(wallet), Number(claimed))
     return c.json({ line })
   } catch (err) {
-    if (err instanceof ProofError || err instanceof RoomError) return c.json({ error: err.message }, 400)
+    if (err instanceof RoomError) return c.json({ error: err.message }, 400)
     console.error('[community]', err)
     return c.json({ error: 'could not post that' }, 500)
   }

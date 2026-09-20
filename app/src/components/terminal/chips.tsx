@@ -59,6 +59,27 @@ export function useScrollOutput(deps: unknown[]) {
 /** Back on the left, the session's own reset on the right, the commands in between. */
 export function ChipBar({ commands, onReset }: { commands: Commands; onReset: () => void }) {
   const { chips, back } = commands
+
+  /**
+   * Enter runs whatever is green.
+   *
+   * Green already means the one thing to do next, so the key everybody presses to say yes ought
+   * to do it. Not while typing: a line being written has its own idea of what Enter means.
+   */
+  useEffect(() => {
+    const go = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      const green = chips.find((chip) => chip.tone === 'yes' && !chip.disabled && chip.onClick)
+      if (!green) return
+      event.preventDefault()
+      green.onClick?.()
+    }
+    window.addEventListener('keydown', go)
+    return () => window.removeEventListener('keydown', go)
+  }, [chips])
+
   return (
     <div className="chip-bar">
       <button
