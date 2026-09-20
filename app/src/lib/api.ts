@@ -35,6 +35,59 @@ export const claimTx = (wallet: string, shell: number) =>
 export const noteSignature = (wallet: string, shell: number, day: number, signature: string) =>
   post<{ signature: string }>('/api/clip/signature', { wallet, shell, day, signature })
 
+/** The sentence a wallet signs to prove a request is its own. Must match the server, exactly. */
+export const proof = (purpose: string, wallet: string, issuedAt: string) =>
+  `coldshell\n${purpose}\n${wallet}\n${issuedAt}`
+
+export type FilmLink = { url: string; name: string; bytes: number; days: number }
+
+export type Kept = {
+  day: number
+  shell: number
+  sha256: string
+  bytes: number
+  at: string
+  /** Absent means the day never reached the chain: recorded, but not dated. */
+  signature?: string
+  /** Whether that can still be put right — the program refuses a day once its window shuts. */
+  signable: boolean
+}
+
+/** A signature is asked for once and spent once, so the caller passes what it is for. */
+async function signed<T>(
+  purpose: string,
+  wallet: string,
+  signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+  path: string,
+  extra: Record<string, unknown> = {},
+) {
+  const issuedAt = new Date().toISOString()
+  const sig = await signMessage(new TextEncoder().encode(proof(purpose, wallet, issuedAt)))
+  return post<T>(path, {
+    wallet,
+    issuedAt,
+    signature: btoa(String.fromCharCode(...sig)),
+    ...extra,
+  })
+}
+
+export const keptClips = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
+  signed<{ clips: Kept[] }>('show me my clips', wallet, signMessage, '/api/clips')
+
+export const burnClip = (
+  wallet: string,
+  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
+  shell: number,
+  day: number,
+) => signed<{ sha256: string }>('burn a clip', wallet, signMessage, '/api/clip/burn', { shell, day })
+
+/**
+ * Asks for the run's film. The address alone cannot be the key to somebody's diary — every
+ * address is written on the chain in plain sight — so the wallet signs for it.
+ */
+export const filmLink = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
+  signed<FilmLink>('give me my film', wallet, signMessage, '/api/film')
+
 export function sendPrepared(
   connection: Connection,
   signTransaction: (tx: Transaction) => Promise<Transaction>,

@@ -15,6 +15,12 @@ export const config = {
    * program's upgrade authority and keep only enough SOL in it to run for a while.
    */
   payerKeyPath: process.env.PAYER_KEY_PATH ?? '.keys/payer.json',
+  films: {
+    /** Built films, rebuilt whenever a run gains a day. */
+    dir: process.env.FILM_DIR ?? 'data/films',
+    /** A download link is good for this long, which is long enough to click it. */
+    ttlMs: Number(process.env.FILM_TTL_MS ?? 30 * 60_000),
+  },
   clips: {
     /** Local storage until R2 is wired in; the directory is a volume in deployment. */
     dir: required('CLIP_DIR', 'data/clips'),

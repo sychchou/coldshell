@@ -9,7 +9,7 @@
  */
 
 import {
-  BaseSignerWalletAdapter,
+  BaseMessageSignerWalletAdapter,
   WalletNotConnectedError,
   WalletReadyState,
   type WalletName,
@@ -17,6 +17,11 @@ import {
 import { Keypair, Transaction, VersionedTransaction } from '@solana/web3.js'
 
 const STORAGE_KEY = 'coldshell.burner'
+
+/** The DER wrapper that turns a bare ed25519 seed into something WebCrypto will import. */
+const PKCS8_ED25519 = Uint8Array.from([
+  0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+])
 
 const ICON =
   'data:image/svg+xml;base64,' +
@@ -32,7 +37,7 @@ function load() {
   return fresh
 }
 
-export class BurnerWalletAdapter extends BaseSignerWalletAdapter {
+export class BurnerWalletAdapter extends BaseMessageSignerWalletAdapter {
   name = 'Burner (dev)' as WalletName<'Burner (dev)'>
   url = 'https://github.com/sychchou/coldshell'
   icon = ICON
@@ -63,6 +68,21 @@ export class BurnerWalletAdapter extends BaseSignerWalletAdapter {
   async disconnect() {
     this.#keypair = null
     this.emit('disconnect')
+  }
+
+  /**
+   * WebCrypto can do ed25519, and a solana secret key is its seed followed by its public half —
+   * so the seed goes in as PKCS8 and no signing library is needed for a wallet that only exists
+   * to save a developer from clicking.
+   */
+  async signMessage(message: Uint8Array): Promise<Uint8Array> {
+    const keypair = this.#keypair
+    if (!keypair) throw new WalletNotConnectedError()
+    const pkcs8 = new Uint8Array(48)
+    pkcs8.set(PKCS8_ED25519, 0)
+    pkcs8.set(keypair.secretKey.subarray(0, 32), PKCS8_ED25519.length)
+    const key = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', false, ['sign'])
+    return new Uint8Array(await crypto.subtle.sign('Ed25519', key, message as BufferSource))
   }
 
   async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {

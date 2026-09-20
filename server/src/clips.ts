@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { config } from './config.ts'
 
@@ -79,6 +79,21 @@ export async function noteSignature(
   if (!note) throw new ClipError('no clip for that day')
   await writeFile(notePath(wallet, shell, day), JSON.stringify({ ...note, signature }, null, 2))
   return { ...note, signature }
+}
+
+/**
+ * Destroys a recording and everything that pointed at it.
+ *
+ * Only ever for a clip that was never dated: once a day is on the chain, the hash it was sealed
+ * with is a promise that the recording exists, and there is nothing to burn without breaking it.
+ */
+export async function burn(wallet: string, shell: number, day: number) {
+  const note = await readNote(wallet, shell, day)
+  if (!note) throw new ClipError('there is nothing there')
+  if (note.signature) throw new ClipError('that day is on chain — its clip stays')
+  await rm(safePath(note.key), { force: true })
+  await rm(notePath(wallet, shell, day), { force: true })
+  return note
 }
 
 export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')

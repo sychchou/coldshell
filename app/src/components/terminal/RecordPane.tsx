@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS, explorerTxUrl } from '../../config'
-import { claimTx, noteSignature, recordDayTx, sendPrepared } from '../../lib/api'
+import {
+  burnClip,
+  claimTx,
+  filmLink,
+  keptClips,
+  noteSignature,
+  recordDayTx,
+  sendPrepared,
+  type FilmLink,
+  type Kept,
+} from '../../lib/api'
 import type { DayMark, RunView } from '../../lib/useRun'
 import { QUESTIONS, questionOfTheDay } from '../../questions'
 import { ClipRecorder, CONSTRAINTS, MAX_MS, MIN_MS, clock, mb, pickMimeType, type Recording } from '../../lib/recorder'
@@ -9,7 +19,7 @@ import { seal, type Sealed } from '../../lib/seal'
 import { explain } from '../../lib/send'
 import { shellStart } from '../../lib/runs'
 import { TEST_MODE, today } from '../../lib/shell'
-import { useCommands, useScrollOutput } from './chips'
+import { useCommands, useScrollOutput, type Chip } from './chips'
 import { bar } from './format'
 
 type Stage =
@@ -91,7 +101,7 @@ export function RecordPane({
   onRegister: () => void
 }) {
   const { connection } = useConnection()
-  const { publicKey, signTransaction } = useWallet()
+  const { publicKey, signMessage, signTransaction } = useWallet()
   const [stage, setStage] = useState<Stage>({ kind: 'idle' })
   const [elapsed, setElapsed] = useState(0)
   const [log, setLog] = useState<Entry[]>([])
@@ -168,6 +178,70 @@ export function RecordPane({
       await view.refresh()
     } catch (err) {
       setClaiming({ shell: index, error: explain(err) })
+    }
+  }
+
+  const [reel, setReel] = useState<{ link?: FilmLink; error?: string; busy?: boolean } | null>(null)
+  const [shelf, setShelf] = useState<{ clips?: Kept[]; error?: string; busy?: string } | null>(null)
+
+  /**
+   * What is on the shelf, dated or not. Behind a signature on purpose: the list says which days
+   * somebody recorded, and that is theirs to know.
+   */
+  const openShelf = async () => {
+    if (!publicKey || !signMessage) return
+    setShelf({ busy: 'reading' })
+    try {
+      setShelf({ clips: (await keptClips(publicKey.toBase58(), signMessage)).clips })
+    } catch (err) {
+      setShelf({ error: explain(err) })
+    }
+  }
+
+  /**
+   * Dates a clip that was uploaded but never signed for — the residue of a wallet that was
+   * locked at the wrong moment. Nothing is uploaded again; the server already holds the minute
+   * and the hash, and this only asks the chain to accept the date it was meant to have.
+   */
+  const dateKept = async (clip: Kept) => {
+    if (!publicKey || !signTransaction) return
+    setShelf((at) => ({ ...at, busy: `day-${clip.day}` }))
+    try {
+      const prepared = await recordDayTx(publicKey.toBase58(), clip.day, clip.sha256)
+      const signature = await sendPrepared(connection, signTransaction, prepared)
+      await noteSignature(publicKey.toBase58(), prepared.shell, clip.day + 1, signature).catch(() => {})
+      await view.refresh()
+      await openShelf()
+    } catch (err) {
+      setShelf((at) => ({ ...at, busy: undefined, error: explain(err) }))
+    }
+  }
+
+  const burnKept = async (clip: Kept) => {
+    if (!publicKey || !signMessage) return
+    setShelf((at) => ({ ...at, busy: `day-${clip.day}` }))
+    try {
+      await burnClip(publicKey.toBase58(), signMessage, clip.shell, clip.day + 1)
+      await openShelf()
+    } catch (err) {
+      setShelf((at) => ({ ...at, busy: undefined, error: explain(err) }))
+    }
+  }
+
+  const orphans = shelf?.clips?.filter((clip) => !clip.signature) ?? []
+
+  /**
+   * The film so far: every minute the ledger holds for this run, end to end. A day whose clip
+   * never reached the chain is not in it — nothing but our own filename ties that recording to a
+   * date, and a date is the one thing here that is not ours to assert.
+   */
+  const makeFilm = async () => {
+    if (!publicKey || !signMessage) return
+    setReel({ busy: true })
+    try {
+      setReel({ link: await filmLink(publicKey.toBase58(), signMessage) })
+    } catch (err) {
+      setReel({ error: explain(err) })
     }
   }
 
@@ -318,6 +392,35 @@ export function RecordPane({
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
+        // Worth having whenever there is anything to watch, not only at the end.
+        ...(run && signMessage
+          ? [{ key: 'clips', label: shelf?.busy === 'reading' ? 'reading…' : 'clips', onClick: openShelf }]
+          : []),
+        // Each stray minute gets its own pair: date it while the chain will still take it, or
+        // let it go. Leaving it lying there is the one thing that helps nobody.
+        ...orphans.flatMap((clip): Chip[] =>
+          shelf?.busy === `day-${clip.day}`
+            ? [{ key: `busy-${clip.day}`, label: 'working…', disabled: true }]
+            : [
+                ...(clip.signable
+                  ? [{
+                      key: `date-${clip.day}`,
+                      label: `date day ${clip.day + 1}`,
+                      tone: 'yes' as const,
+                      onClick: () => dateKept(clip),
+                    }]
+                  : []),
+                {
+                  key: `burn-${clip.day}`,
+                  label: `burn day ${clip.day + 1}`,
+                  tone: 'no' as const,
+                  onClick: () => burnKept(clip),
+                },
+              ],
+        ),
+        ...(run && marks.some((m) => m === 'done') && signMessage
+          ? [{ key: 'film', label: reel?.busy ? 'putting it together…' : 'film', onClick: makeFilm, disabled: reel?.busy }]
+          : []),
         // A finished week is worth collecting whatever else is on screen, so claim is not tucked
         // behind the camera.
         ...claimable.map((index) => ({
@@ -332,11 +435,11 @@ export function RecordPane({
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), claimable.join(), claiming],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), claimable.join(), claiming, reel, shelf, Boolean(signMessage), marks.join()],
     active,
   )
 
-  useScrollOutput([stage.kind, log.length, claiming])
+  useScrollOutput([stage.kind, log.length, claiming, reel, shelf])
 
   // The camera block that owns the stream: the last one printed.
   const liveCamera = log.reduce((id, entry) => (entry.command === 'camera' ? entry.id : id), -1)
@@ -385,6 +488,57 @@ export function RecordPane({
         </p>
       )}
       {claiming?.error && <p className="term-line term-bad">{claiming.error}</p>}
+
+      {shelf && (
+        <div className="term-entry">
+          <p className="term-prompt">clips</p>
+          {shelf.busy === 'reading' && <p className="term-line term-dim">reading…</p>}
+          {shelf.error && <p className="term-line term-bad">{shelf.error}</p>}
+          {shelf.clips?.length === 0 && <p className="term-line term-dim">nothing stored yet.</p>}
+          {shelf.clips?.map((clip) => (
+            <p className="term-line" key={clip.day}>
+              day {clip.day + 1} · {mb(clip.bytes)} ·{' '}
+              {clip.signature ? (
+                <span className="term-dim">on chain</span>
+              ) : clip.signable ? (
+                <span className="term-state" data-state="ok">
+                  not dated — it still can be
+                </span>
+              ) : (
+                <span className="term-bad">not dated — its window has closed</span>
+              )}
+            </p>
+          ))}
+          {orphans.length > 0 && (
+            <p className="term-line term-dim">
+              {orphans.some((clip) => clip.signable)
+                ? 'a minute reached us but never reached the chain. date it, or burn it.'
+                : 'the chain will not take a day whose window has shut. keep it or burn it.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {reel && (
+        <div className="term-entry">
+          <p className="term-prompt">film</p>
+          {reel.busy && <p className="term-line term-dim">joining the minutes…</p>}
+          {reel.error && <p className="term-line term-bad">{reel.error}</p>}
+          {reel.link && (
+            <>
+              <p className="term-line">
+                {reel.link.days} day{reel.link.days > 1 ? 's' : ''} · {mb(reel.link.bytes)}
+              </p>
+              <p className="term-line">
+                <a href={reel.link.url} download={reel.link.name}>
+                  {reel.link.name}
+                </a>
+              </p>
+              <p className="term-line term-dim">the link is good for half an hour.</p>
+            </>
+          )}
+        </div>
+      )}
 
       {log.map((entry) =>
         entry.command === 'example' ? (

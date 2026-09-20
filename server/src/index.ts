@@ -1,9 +1,16 @@
+import { randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
+import { Readable } from 'node:stream'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { config } from './config.ts'
-import { ClipError, noteSignature, store } from './clips.ts'
+import { ClipError, burn, noteSignature, store } from './clips.ts'
 import { TxError, claim, enter, recordDay } from './tx.ts'
+import { fetchRun } from './chain.ts'
+import { PublicKey } from '@solana/web3.js'
+import { FilmError, film, kept } from './film.ts'
+import { ProofError, check } from './proof.ts'
 
 const app = new Hono()
 
@@ -63,6 +70,72 @@ app.post('/api/clip/signature', async (c) => {
     console.error('[clip/signature]', err)
     return c.json({ error: 'could not note that' }, 500)
   }
+})
+
+/**
+ * What this wallet's run has on disk, dated or not. Behind a signature because the list says
+ * which days somebody recorded, which is theirs to know.
+ */
+app.post('/api/clips', async (c) => {
+  const { wallet, issuedAt, signature } = await c.req.json()
+  try {
+    check('show me my clips', String(wallet), String(issuedAt), String(signature))
+    const open = await fetchRun(new PublicKey(String(wallet)))
+    if (!open) return c.json({ clips: [] })
+    return c.json({ clips: await kept(String(wallet), open) })
+  } catch (err) {
+    if (err instanceof ProofError) return c.json({ error: err.message }, 400)
+    console.error('[clips]', err)
+    return c.json({ error: 'could not read those' }, 500)
+  }
+})
+
+/** Burns an undated clip. Only its owner can ask, and only for a day the chain never took. */
+app.post('/api/clip/burn', async (c) => {
+  const { wallet, issuedAt, signature, shell, day } = await c.req.json()
+  try {
+    check('burn a clip', String(wallet), String(issuedAt), String(signature))
+    return c.json(await burn(String(wallet), Number(shell), Number(day)))
+  } catch (err) {
+    if (err instanceof ProofError || err instanceof ClipError) return c.json({ error: err.message }, 400)
+    console.error('[burn]', err)
+    return c.json({ error: 'could not burn that' }, 500)
+  }
+})
+
+/**
+ * The film, once the wallet has shown it is the wallet.
+ *
+ * Building it can take a moment and the file is large, so the answer is a link rather than the
+ * bytes: one link, good for half an hour, which the browser can then download the ordinary way
+ * and give the right name to.
+ */
+const links = new Map<string, { path: string; name: string; until: number }>()
+
+app.post('/api/film', async (c) => {
+  const { wallet, issuedAt, signature } = await c.req.json()
+  try {
+    check('give me my film', String(wallet), String(issuedAt), String(signature))
+    const made = await film(String(wallet))
+    const token = randomUUID()
+    links.set(token, { path: made.path, name: made.name, until: Date.now() + config.films.ttlMs })
+    return c.json({ url: `/api/film/${token}`, name: made.name, bytes: made.bytes, days: made.days })
+  } catch (err) {
+    if (err instanceof ProofError || err instanceof FilmError) return c.json({ error: err.message }, 400)
+    console.error('[film]', err)
+    return c.json({ error: 'could not put that together' }, 500)
+  }
+})
+
+app.get('/api/film/:token', (c) => {
+  const link = links.get(c.req.param('token'))
+  if (!link || link.until < Date.now()) {
+    links.delete(c.req.param('token'))
+    return c.json({ error: 'that link has expired' }, 404)
+  }
+  c.header('content-type', 'video/mp4')
+  c.header('content-disposition', `attachment; filename="${link.name}"`)
+  return c.body(Readable.toWeb(createReadStream(link.path)) as ReadableStream)
 })
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
