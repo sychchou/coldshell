@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { DAYS_PER_SHELL } from '../config'
-import { fetchRun, shellState, type Run, type ShellState } from './runs'
+import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS } from '../config'
+import { fetchRun, shellStart, shellState, type Run, type ShellState } from './runs'
 import { today } from './shell'
+
+/**
+ * What became of one day. A day that was missed and a day that has not arrived are both empty on
+ * the bar, and telling them apart is the whole question somebody asks when they slip.
+ */
+export type DayMark = 'done' | 'open' | 'missed' | 'ahead'
 
 export type RunView = {
   run: Run | null
@@ -12,6 +18,8 @@ export type RunView = {
   day: number | null
   /** How many of the run's days are in. */
   done: number
+  /** One mark per day of the run, in order. */
+  marks: DayMark[]
   /** Shells that can be collected right now, newest last. */
   claimable: number[]
   state: (offset: number) => ShellState
@@ -58,6 +66,7 @@ export function useRun(): RunView {
 
   let day: number | null = null
   let done = 0
+  const marks: DayMark[] = []
   const claimable: number[] = []
 
   if (run) {
@@ -65,7 +74,15 @@ export function useRun(): RunView {
     const index = (shell - run.firstShell) * DAYS_PER_SHELL + dayOfShell - 1
     if (index >= 0 && index < run.shells * DAYS_PER_SHELL) day = index
     for (let d = 0; d < run.shells * DAYS_PER_SHELL; d++) {
-      if ((run.days >> BigInt(d)) & 1n) done++
+      // The chain's own clock, not the screen's: a day is missed when its window shuts, and the
+      // window is the program's.
+      const starts = shellStart(run.firstShell) + d * DAY_MS
+      if ((run.days >> BigInt(d)) & 1n) {
+        done++
+        marks.push('done')
+      } else if (now < starts) marks.push('ahead')
+      else if (now < starts + RECORD_LATE_MS) marks.push('open')
+      else marks.push('missed')
     }
     for (let offset = 0; offset < run.shells; offset++) {
       if (shellState(run, offset, now) === 'claimable') claimable.push(run.firstShell + offset)
@@ -78,6 +95,7 @@ export function useRun(): RunView {
     refresh,
     day,
     done,
+    marks,
     claimable,
     state: (offset: number) => shellState(run!, offset, now),
   }

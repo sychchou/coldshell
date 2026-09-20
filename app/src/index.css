@@ -1836,6 +1836,20 @@ button.nav-link:focus-visible {
   letter-spacing: -0.05em;
 }
 
+/* A day still inside its window is worth doing something about; a day gone is worth knowing
+   about. Everything else is quiet. */
+.term-meter [data-mark='open'] {
+  color: var(--command);
+}
+
+.term-meter [data-mark='missed'] {
+  color: var(--error);
+}
+
+.term-meter [data-mark='ahead'] {
+  color: var(--muted-text);
+}
+
 /* How to start, and the rules. */
 .term-steps,
 .term-rules {

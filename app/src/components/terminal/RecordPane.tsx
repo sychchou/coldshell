@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, explorerTxUrl } from '../../config'
 import { claimTx, noteSignature, recordDayTx, sendPrepared } from '../../lib/api'
-import type { RunView } from '../../lib/useRun'
+import type { DayMark, RunView } from '../../lib/useRun'
 import { QUESTIONS, questionOfTheDay } from '../../questions'
 import { ClipRecorder, CONSTRAINTS, MAX_MS, MIN_MS, clock, mb, pickMimeType, type Recording } from '../../lib/recorder'
 import { seal, type Sealed } from '../../lib/seal'
-import { TEST_MODE, progress, today, untilNextDay } from '../../lib/shell'
+import { TEST_MODE, today } from '../../lib/shell'
 import { useCommands, useScrollOutput } from './chips'
 import { bar } from './format'
 
@@ -32,19 +32,29 @@ function reason(err: unknown) {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** One block per day, filled once that day is sealed. */
-function Days({ sealed, total }: { sealed: number; total: number }) {
+/**
+ * One block per day of the run, in order. A day that was missed and a day that has not come yet
+ * are both unfilled, and the difference between them is the only thing anybody wants to know
+ * after they slip — so the blocks are coloured rather than merely counted.
+ */
+function Days({ marks }: { marks: DayMark[] }) {
+  const done = marks.filter((m) => m === 'done').length
+  const missed = marks.filter((m) => m === 'missed').length
   return (
     <>
       <dt>days</dt>
       <dd>
         <span className="term-meter">
-          {'█'.repeat(sealed)}
-          {'░'.repeat(Math.max(0, total - sealed))}
+          {marks.map((mark, i) => (
+            <span key={i} data-mark={mark}>
+              {mark === 'ahead' ? '░' : '█'}
+            </span>
+          ))}
         </span>
         <span>
           {' '}
-          {sealed}/{total}
+          {done}/{marks.length}
+          {missed > 0 && <span className="term-bad"> · {missed} missed</span>}
         </span>
       </dd>
     </>
@@ -87,9 +97,7 @@ export function RecordPane({
   }, [])
   const now = today()
   void tick
-  const { run, day, done, claimable } = view
-  // Without a run this is the week's own count; with one it becomes day 8 of 14.
-  const span = progress(Date.now(), run ? { firstShell: run.firstShell, shells: run.shells } : undefined)
+  const { run, day, marks, claimable } = view
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
   const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
   // The shell the day being recorded belongs to — derived from the run, as the program derives it,
@@ -287,9 +295,6 @@ export function RecordPane({
         <dt>date</dt>
         <dd>
           {now.date} {now.weekday}
-          {TEST_MODE && (
-            <span className="term-dim"> · next day in {clock(untilNextDay())}</span>
-          )}
         </dd>
         {run && (
           <>
@@ -301,11 +306,11 @@ export function RecordPane({
                 ? run.firstShell > now.shell
                   ? 'not started yet'
                   : 'over'
-                : `day ${day + 1} of ${span.days}`}
+                : `day ${day + 1} of ${marks.length}`}
             </dd>
           </>
         )}
-        {run && <Days sealed={done} total={span.days} />}
+        {run && <Days marks={marks} />}
       </dl>
       {claiming?.signature && (
         <p className="term-line">
