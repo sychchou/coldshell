@@ -1,25 +1,17 @@
-import { useTheme } from '../lib/theme'
-
 /**
- * The title line: the name, then what it is for, set the same size in the same serif. Clicking
- * the name switches the page between dark and light; the window's three dots set it alight in
- * their own colour for a moment.
+ * The title line: the name, then what it is for, set the same size in the same serif.
+ *
+ * Clicking the name reloads the page, because that is what clicking a name does everywhere else
+ * and nobody was ever going to guess it changed the colours. The window's three dots still set
+ * it alight in their own colour for a moment.
  */
 export function Tagline({ tint }: { tint: string | null }) {
-  const [theme, toggleTheme] = useTheme()
   return (
     <div className="tagline">
       <h1 className="wordmark">
-        <button
-          type="button"
-          className="wordmark-name"
-          data-tint={tint ?? undefined}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          onClick={toggleTheme}
-        >
+        <a className="wordmark-name" href="/" data-tint={tint ?? undefined} title="coldshell">
           coldshell
-        </button>
+        </a>
         <span className="wordmark-slogan"> &mdash; you vs you</span>
       </h1>
       <p className="tagline-how">

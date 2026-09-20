@@ -1600,6 +1600,7 @@ button.nav-link:focus-visible {
   border: 0;
   background: none;
   font: inherit;
+  text-decoration: none;
   /* The same blue as an echoed command: the name is a command too. */
   color: var(--command);
   cursor: pointer;
@@ -2038,11 +2039,38 @@ button.nav-link:focus-visible {
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */
+.contact-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.contact-toggle:hover {
+  color: var(--cyan);
+}
+
 .contact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em 0.7em;
   margin: clamp(14px, 2vw, 24px) auto 0;
   color: var(--muted-text);
   font-size: clamp(10px, 1vw, 13px);
-  text-align: center;
+}
+
+.contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
 }
 
 .contact a {
