@@ -119,7 +119,15 @@ app.post('/api/film', async (c) => {
     const made = await film(String(wallet))
     const token = randomUUID()
     links.set(token, { path: made.path, name: made.name, until: Date.now() + config.films.ttlMs })
-    return c.json({ url: `/api/film/${token}`, name: made.name, bytes: made.bytes, days: made.days })
+    return c.json({
+      url: `/api/film/${token}`,
+      name: made.name,
+      bytes: made.bytes,
+      seconds: made.seconds,
+      days: made.days,
+      from: made.from,
+      to: made.to,
+    })
   } catch (err) {
     if (err instanceof ProofError || err instanceof FilmError) return c.json({ error: err.message }, 400)
     console.error('[film]', err)

@@ -39,7 +39,15 @@ export const noteSignature = (wallet: string, shell: number, day: number, signat
 export const proof = (purpose: string, wallet: string, issuedAt: string) =>
   `coldshell\n${purpose}\n${wallet}\n${issuedAt}`
 
-export type FilmLink = { url: string; name: string; bytes: number; days: number }
+export type FilmLink = {
+  url: string
+  name: string
+  bytes: number
+  seconds: number
+  days: number
+  from: number
+  to: number
+}
 
 export type Kept = {
   day: number

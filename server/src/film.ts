@@ -144,7 +144,29 @@ export async function stitch(found: Part[], out: string) {
   }
 }
 
-export type Film = { path: string; name: string; bytes: number; days: number; from: number; to: number }
+export type Film = {
+  path: string
+  name: string
+  bytes: number
+  /** Seconds. What somebody actually sits through, which is the only length worth printing. */
+  seconds: number
+  days: number
+  from: number
+  to: number
+}
+
+/** How long the finished film runs. Asked of the file rather than added up from the parts. */
+async function lengthOf(path: string) {
+  return new Promise<number>((done) => {
+    const probe = spawn('ffprobe', [
+      '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', path,
+    ])
+    let out = ''
+    probe.stdout.on('data', (chunk) => (out += chunk))
+    probe.on('error', () => done(0))
+    probe.on('close', () => done(Math.round(Number(out.trim()) || 0)))
+  })
+}
 
 /** Builds the film for a wallet's current run, or hands back the one already built. */
 export async function film(wallet: string): Promise<Film> {
@@ -174,6 +196,7 @@ export async function film(wallet: string): Promise<Film> {
     path,
     name,
     bytes: (await stat(path)).size,
+    seconds: await lengthOf(path),
     days: found.length,
     from: open.firstShell,
     to: last,

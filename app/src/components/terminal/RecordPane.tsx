@@ -3,7 +3,6 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS, explorerTxUrl } from '../../config'
 import {
   burnClip,
-  claimTx,
   filmLink,
   keptClips,
   noteSignature,
@@ -122,7 +121,7 @@ export function RecordPane({
   }, [])
   const now = today()
   void tick
-  const { run, day, marks, open: openDays, claimable } = view
+  const { run, day, marks, open: openDays } = view
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
   const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
   // The shell a day belongs to — derived from the run, as the program derives it, so the clip
@@ -164,20 +163,6 @@ export function RecordPane({
     } catch (err) {
       // Back to where the clip still exists, carrying whatever already reached the server.
       setStage({ kind: 'done', clip, stored, error: explain(err) })
-    }
-  }
-
-  const [claiming, setClaiming] = useState<{ shell: number; signature?: string; error?: string } | null>(null)
-
-  const claim = async (index: number) => {
-    if (!publicKey || !signTransaction) return
-    setClaiming({ shell: index })
-    try {
-      const signature = await sendPrepared(connection, signTransaction, await claimTx(publicKey.toBase58(), index))
-      setClaiming({ shell: index, signature })
-      await view.refresh()
-    } catch (err) {
-      setClaiming({ shell: index, error: explain(err) })
     }
   }
 
@@ -421,25 +406,14 @@ export function RecordPane({
         ...(run && marks.some((m) => m === 'done') && signMessage
           ? [{ key: 'film', label: reel?.busy ? 'putting it together…' : 'film', onClick: makeFilm, disabled: reel?.busy }]
           : []),
-        // A finished week is worth collecting whatever else is on screen, so claim is not tucked
-        // behind the camera.
-        ...claimable.map((index) => ({
-          key: `claim-${index}`,
-          label: claiming?.shell === index && !claiming.signature && !claiming.error
-            ? 'claiming…'
-            : `claim shell ${index}`,
-          tone: 'yes' as const,
-          onClick: () => claim(index),
-          disabled: claiming?.shell === index && !claiming.error,
-        })),
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), claimable.join(), claiming, reel, shelf, Boolean(signMessage), marks.join()],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), reel, shelf, Boolean(signMessage), marks.join()],
     active,
   )
 
-  useScrollOutput([stage.kind, log.length, claiming, reel, shelf])
+  useScrollOutput([stage.kind, log.length, reel, shelf])
 
   // The camera block that owns the stream: the last one printed.
   const liveCamera = log.reduce((id, entry) => (entry.command === 'camera' ? entry.id : id), -1)
@@ -479,16 +453,6 @@ export function RecordPane({
               {deadline(shellStart(shellOf(d)) + (d % DAYS_PER_SHELL) * DAY_MS + RECORD_LATE_MS)}
             </p>
           ))}
-      {claiming?.signature && (
-        <p className="term-line">
-          shell {claiming.shell} came back.{' '}
-          <a className="term-dim" href={explorerTxUrl(claiming.signature)} target="_blank" rel="noreferrer">
-            {claiming.signature.slice(0, 16)}…
-          </a>
-        </p>
-      )}
-      {claiming?.error && <p className="term-line term-bad">{claiming.error}</p>}
-
       {shelf && (
         <div className="term-entry">
           <p className="term-prompt">clips</p>

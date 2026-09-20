@@ -11,6 +11,8 @@ export type DayMark = 'done' | 'open' | 'missed' | 'ahead'
 
 export type RunView = {
   run: Run | null
+  /** The hook's own clock, so a pane can ask what time it is without reaching for one. */
+  now: number
   loading: boolean
   refresh: () => Promise<void>
   /** Which day of the run today is, counted from zero as the program counts. Null if outside it. */
@@ -95,6 +97,7 @@ export function useRun(): RunView {
 
   return {
     run,
+    now,
     loading,
     refresh,
     day,

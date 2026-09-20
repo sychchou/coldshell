@@ -1,8 +1,8 @@
 import { REPO_URL } from '../config'
-import { CodeIcon, PlaneIcon } from './icons'
+import { CodeIcon, MailIcon } from './icons'
 
 const CONTACTS = [
-  { label: 'suaacho', href: 'https://t.me/suaacho', icon: <PlaneIcon /> },
+  { label: 'sychchou@gmail.com', href: 'mailto:sychchou@gmail.com', icon: <MailIcon /> },
   { label: 'github', href: REPO_URL, icon: <CodeIcon /> },
 ]
 
