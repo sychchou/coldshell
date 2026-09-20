@@ -1,10 +1,10 @@
 /**
  * A download that outlives the request that asked for it.
  *
- * The film is too big to post — seven days of it is eighty megabytes and a mailbox will take
- * twenty-five — so what goes in a message is a link. A link in a mailbox gets opened tomorrow, on
- * another device, after this server has restarted twice. So the token cannot live in memory and
- * cannot expire in half an hour, which is what the download links in the browser were doing.
+ * These lived in a Map, which meant a deploy — or any restart, and this runs in a container that
+ * gets restarted — quietly voided every link handed out since the last one. Somebody who asked
+ * for their film and then went to make tea came back to "that link has expired" about a link
+ * that had not.
  *
  * A token holds the wallet and the film's name, never a path. The path is rebuilt from those by
  * the same code that wrote the film, so a token cannot name a file outside the films directory

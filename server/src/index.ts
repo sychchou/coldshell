@@ -13,7 +13,6 @@ import { ProofError, check } from './proof.ts'
 import { RoomError, announceClaim, room, say } from './community.ts'
 import { MemoError, readMemo, writeMemo } from './memo.ts'
 import { mint, resolveLink, sweepLinks } from './links.ts'
-import { MailError, address, ready as canMail, sendFilm } from './mail.ts'
 
 const app = new Hono()
 
@@ -182,57 +181,11 @@ app.post('/api/film', async (c) => {
       days: made.days,
       from: made.from,
       to: made.to,
-      /** Whether offering to post it would lead anywhere. */
-      mail: canMail(),
     })
   } catch (err) {
     if (err instanceof ProofError || err instanceof FilmError) return c.json({ error: err.message }, 400)
     console.error('[film]', err)
     return c.json({ error: 'could not put that together' }, 500)
-  }
-})
-
-/**
- * Posts the film to an address given here and kept nowhere.
- *
- * The signature is the same proof the download asks for, because this hands the film to whoever
- * holds that mailbox and only its owner may decide that. What stops it becoming a way to post
- * strangers mail from our address is the rate limit: a signature costs a wallet popup, and five
- * an hour is more than anybody needs to send themselves one film.
- */
-const posted = new Map<string, number[]>()
-
-function withinRate(wallet: string) {
-  const hourAgo = Date.now() - 60 * 60_000
-  const recent = (posted.get(wallet) ?? []).filter((at) => at > hourAgo)
-  if (recent.length >= config.mail.perHour) return false
-  posted.set(wallet, [...recent, Date.now()])
-  return true
-}
-
-app.post('/api/film/mail', async (c) => {
-  const { wallet, issuedAt, signature, to } = await c.req.json()
-  try {
-    check('mail me my film', String(wallet), String(issuedAt), String(signature))
-    // Before the film is built rather than after: joining a week takes a moment, and spending it
-    // only to find there is no mailbox is a minute of somebody's evening for nothing.
-    if (!canMail()) throw new MailError('this server cannot send mail')
-    const where = address(String(to ?? ''))
-    if (!withinRate(String(wallet))) throw new MailError('that is enough mail for one hour')
-
-    const made = await film(String(wallet))
-    const days = Math.round(config.films.mailTtlMs / 86_400_000)
-    const token = await mint(String(wallet), made.name, config.films.mailTtlMs)
-    await sendFilm(where, made, `${config.publicUrl}/api/film/${token}`, days)
-
-    // The address goes back only so the screen can say where it went. It is not written down.
-    return c.json({ to: where, days })
-  } catch (err) {
-    if (err instanceof ProofError || err instanceof FilmError || err instanceof MailError) {
-      return c.json({ error: err.message }, 400)
-    }
-    console.error('[film/mail]', err)
-    return c.json({ error: 'could not send that' }, 500)
   }
 })
 
@@ -245,6 +198,6 @@ app.get('/api/film/:token', async (c) => {
 })
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
-  console.log(`coldshell on http://localhost:${port}${canMail() ? '' : ' — mail is not set up'}`)
+  console.log(`coldshell on http://localhost:${port}`)
   void sweepLinks()
 })
