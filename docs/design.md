@@ -133,78 +133,63 @@ Encrypting under a key the participant holds gives the first and loses the secon
 it whenever they like. Holding the key ourselves gives the second and loses the first. Either
 half alone is not the product.
 
-**The answer is to separate the bytes from the key.** Whoever holds one must not hold the other,
-and the chain says when they meet:
+**Both halves need the bytes and the key kept apart**, and there are two ways round that, which
+differ in who holds which:
 
 ```
-the minutes    stay on the participant's machine, encrypted. we never receive one
-the key        is ours, derived rather than stored, and released when the run is over
-the hash       is on chain, which is the only part anybody needs to trust
+bytes here, key theirs    the browser encrypts before it uploads. we hold a blob we cannot open,
+                          they hold the key — so we cannot watch, and they can whenever they like
+bytes theirs, key ours    the minutes never leave their machine and we hold the key until the run
+                          ends — so neither side can, and storage costs us nothing
 ```
 
-We cannot watch because we have nothing to watch. They cannot watch because they cannot open what
-they have. Neither side is being asked to behave; both are simply unable, and the condition for
-opening it is in a program that neither of us can edit.
+The second is stronger and it is not what this is. It needs something installed, and **this is a
+web product** — see [the shape of it](#only-the-web). So: encrypt in the browser, which makes "we
+cannot watch it" literally true, and keep "you cannot watch it either" as a thing the product
+does rather than a thing cryptography enforces. That is worth saying precisely rather than
+overselling: nothing plays a single clip back, and nothing should be added that does.
 
-This also settles storage, which stopped being a design question the moment the bytes stayed put:
-**we keep 32 bytes per run.** No volume to outgrow, no object storage to rent, and the burn on our
-side becomes deleting a key.
+Storage stays ours, then, and the burn is what bounds it.
 
 ### What it costs
 
-- **It needs something installed.** A web page cannot keep a file on somebody's disk reliably, and
-  the whole arrangement rests on the file being there and not here.
-- **One machine per run.** Record on a laptop on Monday and a desktop on Tuesday and the minutes
-  are in two places, and only one of them can be joined. The chain does not care — the day counts
-  and the money is safe wherever it was recorded — but that Tuesday is not in the film. Say this
-  before anybody starts, not after.
-- **Losing the machine loses the film**, exactly as losing the wallet does. The same property that
-  makes it unreadable to us makes it unrecoverable by us, and that is not a bug to be fixed later.
-- **Support becomes guesswork.** Nothing can be reproduced, nothing can be looked at. The agent
-  has to keep a log the participant can send, because it is the only thing we will ever see.
+- **Losing the wallet loses the films.** The key derives from a signature and nothing else, so
+  there is nobody to ask. That is the same property that makes it unreadable to us, and it is not
+  a bug to be fixed later — but it has to be said at registration, loudly, once.
+- **Support becomes guesswork.** Nothing can be opened, so nothing can be reproduced. Whatever
+  goes wrong has to be diagnosable from logs and from what the person can describe.
+- **A signature has to be identical every time**, or the key is not the key any more. WebCrypto
+  Ed25519 holds; the wallets still have to be checked.
 
-### It cannot be a CLI, and it does not have to be one
+### Only the web
 
-The obvious shape for "runs locally, holds files" is a command-line tool. It is the wrong one, for
-a reason that has nothing to do with how hard terminals are: **you cannot see your own face in a
-terminal.** Recording a minute of yourself with no preview is recording blind, and the camera is
-the one thing the browser does genuinely well.
+Everything runs in a browser. No install, no agent, no command line — one URL, which is also the
+only front door everybody can walk through.
 
-So the browser keeps the camera and the whole interface, and what gets installed is a **local
-agent**. The clips go to it instead of to us; at the end it joins them with a real ffmpeg, which
-is also what makes a film of a ten-week run possible at all, since a browser cannot hold one.
-Nothing about the screen changes and the participant never types a command.
+It was nearly the other way. A local program solves real problems: the minutes never reach us,
+ffmpeg is native so a ten-week film is possible, and storage costs nothing. It was built far
+enough to prove it works — [`agent/`](../agent) installs from one pasted line, serves the app and
+removes itself, and [`cli/`](../cli) records a minute with the camera drawn in the terminal. Then
+the evidence came in:
 
-**The agent serves the app rather than the site calling the agent**, which is the opposite of the
-obvious arrangement and is not a preference. Chrome now gates requests from a public page to a
-local address behind a **Local Network Access** permission, and it does not degrade politely:
-tested against the deployed site in Chrome 153, `fetch('http://127.0.0.1:…')` fails with no
-network activity at all — no preflight reaches the agent, and no permission prompt appears, with
-a real click or without one. `targetAddressSpace`, `Access-Control-Allow-Private-Network` and an
-image load were all refused the same way. The site cannot talk to the agent, and waiting for that
-to change is not a plan.
+- **Barriers multiply.** There is already a wallet in the way, which is not a small ask. A
+  terminal on top of it leaves roughly the people who are fluent in both, and that is not an
+  audience, it is a subset of one.
+- **A habit product has to win at the weakest moment** — eleven at night, tired, nearly not
+  bothering. Opening a terminal is not one more step, it is a change of mode.
+- **Phones disappear.** Recording can be a desktop thing, but checking the week, reading the
+  room and seeing the days go green belong on a phone, which is where habits live.
+- **Terminals are not one thing.** The preview is a picture in kitty, ghostty, WezTerm and
+  iTerm2, and half blocks everywhere else — including the default terminal on macOS, which is
+  what most people have. The best part of it does not reach most people, and every terminal is a
+  support case for one person to carry.
+- **`curl | sh` reads as normal to developers and as alarming to everyone else**, which is the
+  wrong first impression for something people are about to stake money on.
 
-Serving from the agent removes the problem instead of fighting it. `http://127.0.0.1` is a
-**secure context**, so the camera, WebCrypto and the file pickers are all there — that was
-checked, not assumed — and the app is same-origin with the agent, so there is no permission, no
-CORS and no mixed content anywhere in it. The agent proxies `/api` to the real server exactly as
-Vercel's rewrite does today, which means the app runs unmodified.
-
-It has a pleasant side effect: the same rule that stopped us reaching the agent stops every other
-page reaching it too. The agent is only addressable by what it serves itself.
-
-The public site keeps everything that is not recording — what this is, the rules, the community,
-registering — and offers a link to `http://localhost`, which is a top-level navigation and not
-subject to any of the above. Somebody without the agent simply finds nothing there, so "is it
-installed" answers itself.
-
-Installing it can be one pasted line — `curl … | sh`, the way rustup and bun and Homebrew itself
-are installed. That is worth knowing for a second reason: **a binary installed from a terminal is
-not quarantined, and does not need notarising.** The signing fees are the price of a double-click
-installer, not of the software, and they can be deferred until there is a reason to pay them.
-
-**The community, the calendar, the memo, the register and the claim all stay on the web**, exactly
-as they are. The agent only ever handles bytes, and is meant to be invisible.
+What was already built for it is not wasted — joining the film wants native ffmpeg wherever it
+ends up running, and the terminal recorder answered how the camera and the file length behave.
+But the product is the web one, and the aesthetic never depended on a real terminal: **the web
+interface is already a terminal**, which is most of the identity at none of the cost.
 
 ## The program
 
@@ -393,33 +378,20 @@ waits, or it takes the trial's five runs with it.
   last one.
 - **Staff deletion in the room.** The room has none. One line from one person is all it takes,
   and right now the only remedy is a deploy.
-- **The local agent**, which is where all of this is going — see [the capsule](#the-capsule). It
-  replaces three things that were separately on this list: object storage (nothing to store),
-  encrypting in the browser (the wrong half of the capsule), and a CLI (you cannot see your face
-  in a terminal).
-
-  **It exists and it runs**, in [`agent/`](../agent): one pasted line installs it, it serves the
-  app at `http://127.0.0.1:7531`, proxies `/api` to the real server, and takes itself off the
-  machine when asked. What it does not do yet is the only part that matters — the clips still go
-  to us. Next: store them there instead, encrypted under a key derived from the wallet, and join
-  the film with the ffmpeg already on that machine.
-
-  Still to answer:
-  - **Does a signature come back identical every time?** **Half answered.** WebCrypto Ed25519
-    signs the same sentence identically across five runs and across a re-imported key, and the
-    HKDF key derived from it is stable — which covers the burner, since that is the same code
-    path. Phantom and Backpack still need a human to click, because nothing else can make them
-    sign. If it does not hold there, the key cannot be derived this way and the design fails
-    quietly, losing films rather than erroring.
-  - ~~Can an `https` page `fetch` from `http://localhost`?~~ **Answered: no.** Chrome's Local
-    Network Access permission refuses it outright and never prompts. The agent serves the app
-    instead — see [the capsule](#the-capsule). Checked in Chrome 153 against the deployed site.
+- **Encrypting in the browser** — see [the capsule](#the-capsule). The key derives from a wallet
+  signature; check first that the wallets return an identical signature every time. WebCrypto
+  Ed25519 does, across five runs and a re-imported key, which covers the burner because it is the
+  same code path. Phantom and Backpack need a human to click, and nothing else can make them
+  sign. If it does not hold there, the key cannot be derived this way and the design fails
+  quietly, losing films rather than erroring.
 - **Lower the bitrate.** 1.2 Mbps at 720p is generous for a face talking; 600 kbps at 480p takes
   a minute from about 12 MB to about 4.5 MB. One line, and two thirds of the storage question
   goes away while the storage question still exists.
-- **Storage until then.** Clips go through the server to a mounted volume, which is right for ten
-  people and wrong for fifty. If the agent is further off than it looks, this needs object
-  storage in between.
+- **Object storage.** Clips go through the server to a mounted volume, which is right for ten
+  people and wrong for fifty. The bytes are ours to keep now, so this is not optional for long:
+  R2 charges about $0.015 a GB a month and nothing for the downloads, which a volume of the same
+  size cannot come near. Presigned uploads also take the clip out of this server's memory, where
+  it currently arrives whole.
 
 ### Settled, kept here so it is not re-litigated
 
@@ -444,5 +416,7 @@ waits, or it takes the trial's five runs with it.
 - **The film is one film, at the end of the run**, not one per shell. Per-shell would have fitted
   a browser's memory, which is an argument about our constraints and not about what somebody
   wants at the end of ten weeks.
-- **One machine per run**, once the agent exists, announced before anybody starts rather than
-  discovered afterwards.
+- **Only the web** — no install, no agent, no CLI. The reasons are in [its own
+  section](#only-the-web), and the short version is that barriers multiply, phones matter for a
+  habit, and the best terminal preview does not reach the terminal most people have. What was
+  built towards it is kept: joining a film wants native ffmpeg wherever that ends up running.
