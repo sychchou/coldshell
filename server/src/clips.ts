@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { config } from './config.ts'
 
@@ -23,20 +23,6 @@ function extensionFor(type: string) {
   throw new ClipError('unsupported recording format')
 }
 
-/** The clip and its note share a name; only the extension differs. */
-function stem(wallet: string, shell: number, day: number) {
-  if (!WALLET.test(wallet)) throw new ClipError('bad wallet')
-  if (!Number.isInteger(shell) || shell < 1) throw new ClipError('bad shell')
-  if (!Number.isInteger(day) || day < 1 || day > 70) throw new ClipError('bad day')
-  return `${wallet}/${shell}-${String(day).padStart(2, '0')}`
-}
-
-/** Everything about a clip that decides where it lives, checked before anything touches disk. */
-export function keyFor(meta: ClipMeta) {
-  if (!SHA256.test(meta.sha256)) throw new ClipError('bad hash')
-  return `${stem(meta.wallet, meta.shell, meta.day)}.${extensionFor(meta.type)}`
-}
-
 /**
  * What is known about a stored clip. The signature is the important part: the hash itself lives
  * in the record_day instruction data, which is permanent — but only findable if you know which
@@ -50,8 +36,23 @@ export type Note = {
   signature?: string
 }
 
-const notePath = (wallet: string, shell: number, day: number) =>
-  safePath(`${stem(wallet, shell, day)}.json`)
+/**
+ * A day holds up to `config.clips.perDay` minutes, so a clip is named for its day and then for
+ * itself. The short hash is enough to tell them apart and makes an upload of the same minute
+ * twice land on itself rather than beside itself.
+ */
+function stem(wallet: string, shell: number, day: number, sha256?: string) {
+  if (!WALLET.test(wallet)) throw new ClipError('bad wallet')
+  if (!Number.isInteger(shell) || shell < 1) throw new ClipError('bad shell')
+  if (!Number.isInteger(day) || day < 1 || day > 70) throw new ClipError('bad day')
+  const of = `${wallet}/${shell}-${String(day).padStart(2, '0')}`
+  if (!sha256) return of
+  if (!SHA256.test(sha256)) throw new ClipError('bad hash')
+  return `${of}-${sha256.slice(0, 8)}`
+}
+
+export const keyFor = (meta: ClipMeta) =>
+  `${stem(meta.wallet, meta.shell, meta.day, meta.sha256)}.${extensionFor(meta.type)}`
 
 function safePath(key: string) {
   // resolve() keeps a crafted key from climbing out of the clip directory.
@@ -60,39 +61,72 @@ function safePath(key: string) {
   return path
 }
 
-export async function readNote(wallet: string, shell: number, day: number): Promise<Note | null> {
+export const clipPath = (note: Note) => safePath(note.key)
+
+const notePath = (wallet: string, shell: number, day: number, sha256: string) =>
+  safePath(`${stem(wallet, shell, day, sha256)}.json`)
+
+const read = async (path: string): Promise<Note | null> => {
   try {
-    return JSON.parse(await readFile(notePath(wallet, shell, day), 'utf8')) as Note
+    return JSON.parse(await readFile(path, 'utf8')) as Note
   } catch {
     return null
   }
 }
 
-/** Ties the clip to the transaction that timestamped it, once that transaction has confirmed. */
+/**
+ * Every minute stored for one day, oldest first — which is the order they were lived in, and so
+ * the order they belong in.
+ */
+export async function notesFor(wallet: string, shell: number, day: number): Promise<Note[]> {
+  const prefix = stem(wallet, shell, day).split('/')[1]!
+  let names: string[]
+  try {
+    names = await readdir(resolve(join(config.clips.dir, wallet)))
+  } catch {
+    return []
+  }
+  const found = await Promise.all(
+    names
+      // `${prefix}.json` is a clip from before a day could hold more than one; `${prefix}-…json`
+      // is one from after. Both are somebody's minute.
+      .filter((name) => name.endsWith('.json') && (name === `${prefix}.json` || name.startsWith(`${prefix}-`)))
+      .map((name) => read(safePath(`${wallet}/${name}`))),
+  )
+  return found.filter((note): note is Note => note !== null).sort((a, b) => a.at.localeCompare(b.at))
+}
+
+export const noteWith = async (wallet: string, shell: number, day: number, sha256: string) =>
+  (await notesFor(wallet, shell, day)).find((note) => note.sha256 === sha256) ?? null
+
+/** Ties a clip to the transaction that dated it, once that transaction has confirmed. */
 export async function noteSignature(
   wallet: string,
   shell: number,
   day: number,
+  sha256: string,
   signature: string,
 ) {
-  const note = await readNote(wallet, shell, day)
-  if (!note) throw new ClipError('no clip for that day')
-  await writeFile(notePath(wallet, shell, day), JSON.stringify({ ...note, signature }, null, 2))
-  return { ...note, signature }
+  const note = await noteWith(wallet, shell, day, sha256)
+  if (!note) throw new ClipError('no clip like that')
+  const marked = { ...note, signature }
+  await writeFile(notePath(wallet, shell, day, sha256), JSON.stringify(marked, null, 2))
+  return marked
 }
 
 /**
  * Destroys a recording and everything that pointed at it.
  *
- * Only ever for a clip that was never dated: once a day is on the chain, the hash it was sealed
- * with is a promise that the recording exists, and there is nothing to burn without breaking it.
+ * Only ever for a clip that was never dated: once a minute is on the chain, the hash it was
+ * sealed with is a promise that the recording exists, and there is nothing to burn without
+ * breaking it.
  */
-export async function burn(wallet: string, shell: number, day: number) {
-  const note = await readNote(wallet, shell, day)
+export async function burn(wallet: string, shell: number, day: number, sha256: string) {
+  const note = await noteWith(wallet, shell, day, sha256)
   if (!note) throw new ClipError('there is nothing there')
-  if (note.signature) throw new ClipError('that day is on chain — its clip stays')
-  await rm(safePath(note.key), { force: true })
-  await rm(notePath(wallet, shell, day), { force: true })
+  if (note.signature) throw new ClipError('that minute is on chain — it stays')
+  await rm(clipPath(note), { force: true })
+  await rm(notePath(wallet, shell, day, sha256), { force: true })
   return note
 }
 
@@ -103,25 +137,27 @@ export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).
  * what goes on chain, and a truncated upload would otherwise be sealed as if it were whole.
  */
 export async function store(meta: ClipMeta, bytes: Uint8Array) {
-  // A day whose clip is already on chain is finished. Overwriting it would leave a recording
-  // that hashes to something the ledger never saw — the one thing this whole arrangement exists
-  // to prevent. Before the signature there is nothing to protect, so a retake is fine.
-  const dated = await readNote(meta.wallet, meta.shell, meta.day)
-  if (dated?.signature) throw new ClipError('that day is already on chain — its clip cannot be replaced')
-
   if (bytes.byteLength < config.clips.minBytes) throw new ClipError('that is too small to be a minute')
   if (bytes.byteLength > config.clips.maxBytes) throw new ClipError('that is larger than a clip may be')
 
   const digest = sha256(bytes)
   if (digest !== meta.sha256) throw new ClipError('the upload does not match its hash')
 
+  const already = await notesFor(meta.wallet, meta.shell, meta.day)
+  const same = already.find((note) => note.sha256 === digest)
+  // A minute on the chain is fixed: overwriting it would leave a recording that hashes to
+  // something the ledger never saw, which is the one thing this arrangement exists to prevent.
+  if (same?.signature) throw new ClipError('that minute is already on chain')
+  if (!same && already.length >= config.clips.perDay) {
+    throw new ClipError(`a day holds ${config.clips.perDay} minutes at most`)
+  }
+
   const key = keyFor(meta)
   const path = safePath(key)
-
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, bytes)
 
   const note: Note = { key, sha256: digest, bytes: bytes.byteLength, at: new Date().toISOString() }
-  await writeFile(notePath(meta.wallet, meta.shell, meta.day), JSON.stringify(note, null, 2))
+  await writeFile(notePath(meta.wallet, meta.shell, meta.day, digest), JSON.stringify(note, null, 2))
   return note
 }

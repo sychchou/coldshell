@@ -121,7 +121,7 @@ export function RecordPane({
   }, [])
   const now = today()
   void tick
-  const { run, day, marks, open: openDays } = view
+  const { run, day, marks, open: openDays, empty } = view
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
   const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
   // The shell a day belongs to — derived from the run, as the program derives it, so the clip
@@ -157,7 +157,7 @@ export function RecordPane({
       const prepared = await recordDayTx(wallet, forDay, stored.sha256)
       const signature = await sendPrepared(connection, signTransaction, prepared)
       // The hash is permanent in the instruction data, but only findable through its signature.
-      await noteSignature(wallet, prepared.shell, forDay + 1, signature).catch(() => {})
+      await noteSignature(wallet, prepared.shell, forDay + 1, stored.sha256, signature).catch(() => {})
       setStage({ kind: 'sealed', clip, stored, signature, forDay })
       await view.refresh()
     } catch (err) {
@@ -194,7 +194,7 @@ export function RecordPane({
     try {
       const prepared = await recordDayTx(publicKey.toBase58(), clip.day, clip.sha256)
       const signature = await sendPrepared(connection, signTransaction, prepared)
-      await noteSignature(publicKey.toBase58(), prepared.shell, clip.day + 1, signature).catch(() => {})
+      await noteSignature(publicKey.toBase58(), prepared.shell, clip.day + 1, clip.sha256, signature).catch(() => {})
       await view.refresh()
       await openShelf()
     } catch (err) {
@@ -206,7 +206,7 @@ export function RecordPane({
     if (!publicKey || !signMessage) return
     setShelf((at) => ({ ...at, busy: `day-${clip.day}` }))
     try {
-      await burnClip(publicKey.toBase58(), signMessage, clip.shell, clip.day + 1)
+      await burnClip(publicKey.toBase58(), signMessage, clip.shell, clip.day + 1, clip.sha256)
       await openShelf()
     } catch (err) {
       setShelf((at) => ({ ...at, busy: undefined, error: explain(err) }))
@@ -214,6 +214,8 @@ export function RecordPane({
   }
 
   const orphans = shelf?.clips?.filter((clip) => !clip.signature) ?? []
+  /** An earlier day with nothing in it and time left on it: the one worth asking about. */
+  const behind = empty.find((d) => d !== day)
 
   /**
    * The film so far: every minute the ledger holds for this run, end to end. A day whose clip
@@ -322,12 +324,12 @@ export function RecordPane({
     switch (stage.kind) {
       case 'which':
         return [
-          { key: 'y', label: 'y', tone: 'yes' as const, onClick: () => sealClip(stage.clip, stage.stored, openDays[0]!) },
+          { key: 'y', label: 'y', tone: 'yes' as const, onClick: () => sealClip(stage.clip, stage.stored, behind!) },
           {
             key: 'n',
             label: 'n',
             tone: 'no' as const,
-            onClick: () => sealClip(stage.clip, stage.stored, openDays[openDays.length - 1]!),
+            onClick: () => sealClip(stage.clip, stage.stored, day ?? openDays[openDays.length - 1]!),
           },
         ]
       case 'sealing':
@@ -346,10 +348,12 @@ export function RecordPane({
             tone: 'yes' as const,
             // With two days open the clip has to say which one it is for; with one there is
             // nothing to ask.
+            // Only an earlier day with nothing in it raises the question. A day already kept
+            // can take another minute, but nobody reaches for the camera to say so.
             onClick: () =>
-              openDays.length > 1
+              behind !== undefined
                 ? setStage({ kind: 'which', clip: stage.clip, stored: stage.stored })
-                : sealClip(stage.clip, stage.stored, openDays[0]!),
+                : sealClip(stage.clip, stage.stored, day ?? openDays[0]!),
             disabled: !publicKey || openDays.length === 0,
           },
         ]
@@ -409,7 +413,7 @@ export function RecordPane({
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), reel, shelf, Boolean(signMessage), marks.join()],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), empty.join(), reel, shelf, Boolean(signMessage), marks.join()],
     active,
   )
 
@@ -445,7 +449,7 @@ export function RecordPane({
       {/* Today being open is the ordinary state and needs no announcement. A day before today
           still being open is the thing somebody would want to be told, while there is time. */}
       {run &&
-        openDays
+        empty
           .filter((d) => d !== day)
           .map((d) => (
             <p className="term-line" key={d}>
@@ -581,19 +585,18 @@ export function RecordPane({
           {stage.kind === 'done' && !stage.error && !stage.stored && (
             <p className="term-line term-dim">
               {openDays.length === 0
-                ? 'every day within reach is already on chain. one minute a day is all it takes.'
+                ? 'no day is open to record. one minute a day is all it takes.'
                 : 'nothing has left this browser yet.'}
             </p>
           )}
           {stage.kind === 'which' && (
             <>
               <p className="term-line">
-                day {openDays[0]! + 1} is still empty and its window has not closed. is this
-                minute for day {openDays[0]! + 1}?
+                day {(behind ?? 0) + 1} is still empty and its window has not closed. is this
+                minute for day {(behind ?? 0) + 1}?
               </p>
               <p className="term-line term-dim">
-                y — file it as day {openDays[0]! + 1} · n — file it as day{' '}
-                {openDays[openDays.length - 1]! + 1}, today
+                y — file it as day {(behind ?? 0) + 1} · n — file it as day {(day ?? 0) + 1}, today
               </p>
             </>
           )}

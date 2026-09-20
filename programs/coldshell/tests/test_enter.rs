@@ -72,7 +72,7 @@ fn nothing_can_be_recorded_until_the_run_starts() {
     enter(&mut env, &user, 1, 10 * USDC).unwrap();
 
     let err = record(&mut env, &user, 0).unwrap_err();
-    assert!(err.contains("Custom(6004)"), "{err}");
+    assert!(err.contains("Custom(6003)"), "{err}");
 }
 
 #[test]

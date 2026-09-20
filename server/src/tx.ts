@@ -37,7 +37,8 @@ import {
   totalDays,
   usdcAta,
 } from './chain.ts'
-import { readNote } from './clips.ts'
+import { noteWith, notesFor } from './clips.ts'
+import { config } from './config.ts'
 
 export class TxError extends Error {}
 
@@ -97,7 +98,6 @@ export async function recordDay(body: Record<string, unknown>) {
   const run = await fetchRun(user)
   if (!run) refuse('that wallet has no run open')
   if (day < 0 || day >= totalDays(run)) refuse('that day is not part of the run')
-  if (recorded(run, day)) refuse('that day is already recorded')
 
   const now = nowSeconds()
   const starts = dayStart(run, day)
@@ -108,9 +108,14 @@ export async function recordDay(body: Record<string, unknown>) {
   // is not pretending to be one — the participant could sign this themselves for nothing. It is
   // our own fee we are refusing to pay twice.
   const shell = run.firstShell + Math.floor(day / DAYS_PER_SHELL)
-  const note = await readNote(user.toBase58(), shell, day + 1)
+  const note = await noteWith(user.toBase58(), shell, day + 1, hash)
   if (!note) refuse('upload the clip first')
-  if (note.sha256 !== hash) refuse('that hash is not the clip we stored')
+  if (note.signature) refuse('that minute is already on chain')
+
+  // A day holds a handful of minutes and every one of them costs us a fee to date, so the
+  // ceiling lives here, where the fee is spent.
+  const dated = (await notesFor(user.toBase58(), shell, day + 1)).filter((n) => n.signature).length
+  if (dated >= config.clips.perDay) refuse(`a day holds ${config.clips.perDay} minutes at most`)
 
   return { ...(await prepare(recordDayIx(user, day, Buffer.from(hash, 'hex')))), shell }
 }

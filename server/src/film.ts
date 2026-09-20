@@ -21,7 +21,7 @@ import {
   totalDays,
   type Run,
 } from './chain.ts'
-import { ClipError, readNote } from './clips.ts'
+import { clipPath, notesFor } from './clips.ts'
 import { config } from './config.ts'
 
 export class FilmError extends Error {}
@@ -34,11 +34,12 @@ export async function parts(wallet: string, run: Run): Promise<Part[]> {
   for (let day = 0; day < totalDays(run); day++) {
     if (!recorded(run, day)) continue
     const shell = run.firstShell + Math.floor(day / DAYS_PER_SHELL)
-    const note = await readNote(wallet, shell, day + 1)
-    // The chain says the day was recorded but the clip is not here: the ledger is the record and
-    // the file is only a copy, so this is our loss to report, not a reason to refuse the rest.
-    if (!note?.signature) continue
-    found.push({ day, shell, path: clipPath(note.key), sha256: note.sha256, signature: note.signature })
+    for (const note of await notesFor(wallet, shell, day + 1)) {
+      // A minute the chain never took has no claim to a date, and a date is what puts it in
+      // order. It stays on disk; it is simply not part of the record.
+      if (!note.signature) continue
+      found.push({ day, shell, path: clipPath(note), sha256: note.sha256, signature: note.signature })
+    }
   }
   return found
 }
@@ -66,25 +67,20 @@ export async function kept(wallet: string, open: Run, now = Date.now() / 1000): 
   const out: Kept[] = []
   for (let day = 0; day < totalDays(open); day++) {
     const shell = open.firstShell + Math.floor(day / DAYS_PER_SHELL)
-    const note = await readNote(wallet, shell, day + 1)
-    if (!note) continue
-    out.push({
-      day,
-      shell,
-      sha256: note.sha256,
-      bytes: note.bytes,
-      at: note.at,
-      signature: note.signature,
-      signable: !note.signature && now <= dayStart(open, day) + RECORD_LATE_SECONDS,
-    })
+    const inTime = now <= dayStart(open, day) + RECORD_LATE_SECONDS
+    for (const note of await notesFor(wallet, shell, day + 1)) {
+      out.push({
+        day,
+        shell,
+        sha256: note.sha256,
+        bytes: note.bytes,
+        at: note.at,
+        signature: note.signature,
+        signable: !note.signature && inTime,
+      })
+    }
   }
   return out
-}
-
-function clipPath(key: string) {
-  const path = resolve(join(config.clips.dir, key))
-  if (!path.startsWith(resolve(config.clips.dir))) throw new ClipError('bad key')
-  return path
 }
 
 const run = (args: string[]) =>

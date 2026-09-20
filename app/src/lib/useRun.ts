@@ -22,10 +22,12 @@ export type RunView = {
   /** One mark per day of the run, in order. */
   marks: DayMark[]
   /**
-   * Days that can still be recorded, earliest first. The window runs two days, so yesterday is
-   * usually in here beside today — and a minute meant for yesterday has to be able to say so.
+   * Days whose window is open, earliest first — whether or not something is already in them. A
+   * day holds more than one minute, so a day already kept can still take another.
    */
   open: number[]
+  /** Of those, the ones with nothing in them yet: the days somebody is about to lose. */
+  empty: number[]
   /** Shells that can be collected right now, newest last. */
   claimable: number[]
   state: (offset: number) => ShellState
@@ -73,6 +75,7 @@ export function useRun(): RunView {
   let day: number | null = null
   let done = 0
   const marks: DayMark[] = []
+  const open: number[] = []
   const claimable: number[] = []
 
   if (run) {
@@ -83,6 +86,7 @@ export function useRun(): RunView {
       // The chain's own clock, not the screen's: a day is missed when its window shuts, and the
       // window is the program's.
       const starts = shellStart(run.firstShell) + d * DAY_MS
+      if (now >= starts && now < starts + RECORD_LATE_MS) open.push(d)
       if ((run.days >> BigInt(d)) & 1n) {
         done++
         marks.push('done')
@@ -103,7 +107,8 @@ export function useRun(): RunView {
     day,
     done,
     marks,
-    open: marks.flatMap((mark, i) => (mark === 'open' ? [i] : [])),
+    open: open,
+    empty: open.filter((i) => marks[i] !== 'done'),
     claimable,
     state: (offset: number) => shellState(run!, offset, now),
   }

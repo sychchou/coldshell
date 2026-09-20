@@ -32,8 +32,13 @@ export const claimTx = (wallet: string, shell: number) =>
   post<Prepared>('/api/tx/claim', { wallet, shell })
 
 /** Ties a clip to the transaction that timestamped it, so the hash can be found again later. */
-export const noteSignature = (wallet: string, shell: number, day: number, signature: string) =>
-  post<{ signature: string }>('/api/clip/signature', { wallet, shell, day, signature })
+export const noteSignature = (
+  wallet: string,
+  shell: number,
+  day: number,
+  sha256: string,
+  signature: string,
+) => post<{ signature: string }>('/api/clip/signature', { wallet, shell, day, sha256, signature })
 
 /** The sentence a wallet signs to prove a request is its own. Must match the server, exactly. */
 export const proof = (purpose: string, wallet: string, issuedAt: string) =>
@@ -87,7 +92,8 @@ export const burnClip = (
   signMessage: (m: Uint8Array) => Promise<Uint8Array>,
   shell: number,
   day: number,
-) => signed<{ sha256: string }>('burn a clip', wallet, signMessage, '/api/clip/burn', { shell, day })
+  sha256: string,
+) => signed<{ sha256: string }>('burn a clip', wallet, signMessage, '/api/clip/burn', { shell, day, sha256 })
 
 /**
  * Asks for the run's film. The address alone cannot be the key to somebody's diary — every

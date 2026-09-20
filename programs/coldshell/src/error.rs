@@ -8,8 +8,6 @@ pub enum ErrorCode {
     InvalidStake,
     #[msg("That day is not part of this run.")]
     InvalidDay,
-    #[msg("That day is already recorded.")]
-    AlreadyRecorded,
     #[msg("That day has not started yet.")]
     DayNotStarted,
     #[msg("That day can no longer be recorded.")]

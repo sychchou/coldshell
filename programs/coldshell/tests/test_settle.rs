@@ -46,7 +46,7 @@ fn a_shell_cannot_be_swept_while_its_last_day_is_still_open() {
     // The week has ended, but day 6 can still be recorded for another day.
     set_time(&mut env.svm, settles(FIRST, 0) - 1);
     let err = sweep(&mut env, &user.pubkey(), 0).unwrap_err();
-    assert!(err.contains("Custom(6007)"), "{err}");
+    assert!(err.contains("Custom(6006)"), "{err}");
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn a_finished_shell_is_the_participants_for_four_weeks() {
 
     set_time(&mut env.svm, deadline(FIRST, 0) - 1);
     let err = sweep(&mut env, &user.pubkey(), 0).unwrap_err();
-    assert!(err.contains("Custom(6012)"), "{err}");
+    assert!(err.contains("Custom(6011)"), "{err}");
 
     set_time(&mut env.svm, deadline(FIRST, 0));
     sweep(&mut env, &user.pubkey(), 0).unwrap();
@@ -70,11 +70,11 @@ fn sweeping_twice_and_sweeping_a_claim_are_both_refused() {
 
     set_time(&mut env.svm, settles(FIRST, 0));
     sweep(&mut env, &user.pubkey(), 0).unwrap();
-    assert!(sweep(&mut env, &user.pubkey(), 0).unwrap_err().contains("Custom(6010)"));
+    assert!(sweep(&mut env, &user.pubkey(), 0).unwrap_err().contains("Custom(6009)"));
 
     set_time(&mut env.svm, settles(FIRST, 1));
     claim(&mut env, &user, 1).unwrap();
-    assert!(sweep(&mut env, &user.pubkey(), 1).unwrap_err().contains("Custom(6009)"));
+    assert!(sweep(&mut env, &user.pubkey(), 1).unwrap_err().contains("Custom(6008)"));
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn a_run_with_a_shell_still_open_cannot_be_closed() {
     claim(&mut env, &user, 0).unwrap();
 
     let err = close(&mut env, &user, &user).unwrap_err();
-    assert!(err.contains("Custom(6013)"), "{err}");
+    assert!(err.contains("Custom(6012)"), "{err}");
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn a_stranger_may_not_close_a_run() {
     let stranger = Keypair::new();
     env.svm.airdrop(&stranger.pubkey(), 1_000_000_000).unwrap();
     let err = close(&mut env, &stranger, &user).unwrap_err();
-    assert!(err.contains("Custom(6014)"), "{err}");
+    assert!(err.contains("Custom(6013)"), "{err}");
 
     // The participant, on the other hand, can.
     close(&mut env, &user, &user).unwrap();

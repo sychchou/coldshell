@@ -28,5 +28,11 @@ export const config = {
     maxBytes: Number(process.env.MAX_CLIP_BYTES ?? 128 * 1024 * 1024),
     /** A minute is the floor, but the browser already enforces it — this only catches nonsense. */
     minBytes: Number(process.env.MIN_CLIP_BYTES ?? 100_000),
+    /**
+     * How many minutes one day may hold. A day is kept by one of them; the rest are for the
+     * film. The ceiling is here rather than on chain because what it protects is this server's
+     * disk and the fees it pays, and both are spent here.
+     */
+    perDay: Number(process.env.CLIPS_PER_DAY ?? 5),
   },
 }

@@ -6,7 +6,8 @@ use crate::{constants::*, error::ErrorCode, state::Run};
 ///
 /// Nothing here judges the recording — the program cannot see it and does not want to. What it
 /// does is put the moment and the clip's hash in the ledger, where neither the participant nor
-/// the platform can move them afterwards.
+/// the platform can move them afterwards. A day may be recorded more than once; the bit is the
+/// promise kept, and each hash is a minute of it.
 #[event]
 pub struct DayRecorded {
     pub user: Pubkey,
@@ -26,9 +27,6 @@ pub fn handle_record_day(ctx: Context<RecordDay>, day: u16, hash: [u8; 32]) -> R
     let run = &mut ctx.accounts.run;
     require!(day < run.total_days(), ErrorCode::InvalidDay);
 
-    let bit = 1u128 << day;
-    require!(run.days & bit == 0, ErrorCode::AlreadyRecorded);
-
     let day_start = run.day_start(day)?;
     let now = Clock::get()?.unix_timestamp;
     // Early, because the screen counts days in the participant's own timezone; late, because a
@@ -42,7 +40,13 @@ pub fn handle_record_day(ctx: Context<RecordDay>, day: u16, hash: [u8; 32]) -> R
     require!(now >= opens, ErrorCode::DayNotStarted);
     require!(now <= closes, ErrorCode::RecordingClosed);
 
-    run.days |= bit;
+    // A day already marked can be marked again: one minute is the promise, and a day somebody
+    // had more than one minute in is a day with more than one minute in it. The bit says the
+    // promise was kept; each call puts another hash and another timestamp in the ledger, so
+    // every minute of the film has a date of its own. How many a day may hold is not the
+    // chain's business — it is a question about our storage and our fees, and it is settled
+    // where those are spent.
+    run.days |= 1u128 << day;
 
     emit!(DayRecorded { user: run.user, day, hash, at: now });
     Ok(())

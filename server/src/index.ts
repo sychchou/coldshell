@@ -62,9 +62,9 @@ for (const [name, build] of Object.entries(transactions)) {
  * event log that would otherwise say is pruned within days.
  */
 app.post('/api/clip/signature', async (c) => {
-  const { wallet, shell, day, signature } = await c.req.json()
+  const { wallet, shell, day, sha256, signature } = await c.req.json()
   try {
-    return c.json(await noteSignature(wallet, Number(shell), Number(day), String(signature)))
+    return c.json(await noteSignature(wallet, Number(shell), Number(day), String(sha256), String(signature)))
   } catch (err) {
     if (err instanceof ClipError) return c.json({ error: err.message }, 400)
     console.error('[clip/signature]', err)
@@ -92,10 +92,10 @@ app.post('/api/clips', async (c) => {
 
 /** Burns an undated clip. Only its owner can ask, and only for a day the chain never took. */
 app.post('/api/clip/burn', async (c) => {
-  const { wallet, issuedAt, signature, shell, day } = await c.req.json()
+  const { wallet, issuedAt, signature, shell, day, sha256 } = await c.req.json()
   try {
     check('burn a clip', String(wallet), String(issuedAt), String(signature))
-    return c.json(await burn(String(wallet), Number(shell), Number(day)))
+    return c.json(await burn(String(wallet), Number(shell), Number(day), String(sha256)))
   } catch (err) {
     if (err instanceof ProofError || err instanceof ClipError) return c.json({ error: err.message }, 400)
     console.error('[burn]', err)

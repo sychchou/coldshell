@@ -34,7 +34,7 @@ fn the_early_edge() {
 
     set_time(&mut env.svm, opens - 1);
     let err = record(&mut env, &user, 4).unwrap_err();
-    assert!(err.contains("Custom(6004)"), "{err}");
+    assert!(err.contains("Custom(6003)"), "{err}");
 
     set_time(&mut env.svm, opens);
     record(&mut env, &user, 4).unwrap();
@@ -47,18 +47,34 @@ fn the_late_edge() {
 
     set_time(&mut env.svm, closes + 1);
     let err = record(&mut env, &user, 2).unwrap_err();
-    assert!(err.contains("Custom(6005)"), "{err}");
+    assert!(err.contains("Custom(6004)"), "{err}");
 
     set_time(&mut env.svm, closes);
     record(&mut env, &user, 2).unwrap();
 }
 
+/// A day can hold more than one minute. The bit says the promise was kept; each call puts
+/// another hash and another timestamp in the ledger, so every minute has a date of its own.
+/// How many a day may hold is not the chain's business — that is a question about storage and
+/// fees, and it is answered where those are spent.
 #[test]
-fn the_same_day_twice_is_refused() {
+fn a_day_can_be_recorded_more_than_once() {
+    let (mut env, user) = a_run(1);
+    set_time(&mut env.svm, day_start(FIRST, 1) + 1);
+    for _ in 0..3 {
+        record(&mut env, &user, 1).unwrap();
+    }
+    assert_eq!(run_state(&env.svm, &user.pubkey()).days, 0b10);
+}
+
+/// But only while its window is open — a second minute is still a minute of that day.
+#[test]
+fn a_second_minute_still_has_to_be_in_time() {
     let (mut env, user) = a_run(1);
     record_days(&mut env, &user, FIRST, &[1]);
+    set_time(&mut env.svm, day_start(FIRST, 1) + RECORD_LATE_SECONDS + 1);
     let err = record(&mut env, &user, 1).unwrap_err();
-    assert!(err.contains("Custom(6003)"), "{err}");
+    assert!(err.contains("Custom(6004)"), "{err}");
 }
 
 #[test]
