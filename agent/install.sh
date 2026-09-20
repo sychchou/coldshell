@@ -50,12 +50,14 @@ git clone --depth 1 --quiet "$REPO" "$WORK/src"
 NETWORK="${COLDSHELL_NETWORK:-devnet}"
 RPC="${COLDSHELL_RPC:-https://api.devnet.solana.com}"
 
-say "building the app for $NETWORK"
+say "building the app for $NETWORK — this takes a minute"
+# Quiet unless it fails, and then loud: a wall of build output says nothing to somebody who only
+# wanted to install a thing, and says everything when the thing did not install.
 (
   cd "$WORK/src/app" \
     && npm ci --silent --no-audit --no-fund \
-    && VITE_SOLANA_NETWORK="$NETWORK" VITE_RPC_URL="$RPC" npm run build --silent
-) || die "the app would not build"
+    && VITE_SOLANA_NETWORK="$NETWORK" VITE_RPC_URL="$RPC" npm run build
+) >"$WORK/build.log" 2>&1 || { cat "$WORK/build.log" >&2; die "the app would not build"; }
 
 mkdir -p "$HOME_DIR/agent"
 rm -rf "$HOME_DIR/app"
