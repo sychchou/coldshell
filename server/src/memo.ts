@@ -5,7 +5,8 @@
  * yourself about why you started, so that on the fourth evening there is something on the screen
  * that was written by somebody who meant it.
  *
- * It is kept behind a signature because, unlike the room, it was not said out loud.
+ * It is as public as the address it hangs on, which is to say public. A line to yourself, not
+ * a secret: asking for a signature to look at your own note costs more than the note is worth.
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'

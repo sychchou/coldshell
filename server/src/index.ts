@@ -75,20 +75,22 @@ app.post('/api/clip/signature', async (c) => {
 })
 
 /**
- * The one note a wallet keeps. Behind a signature because, unlike the room, it was not said out
- * loud — and `said` being absent is a read rather than an erasure.
+ * The one note a wallet keeps. `said` being absent is a read rather than an erasure.
+ *
+ * Unsigned, like the room: a popup to look at your own note is more friction than the note is
+ * worth. The cost is that a memo is as public as the address it hangs on, which is to say
+ * public — so this is a line to yourself, not a secret.
  */
 app.post('/api/memo', async (c) => {
-  const { wallet, issuedAt, signature, said } = await c.req.json()
+  const { wallet, said } = await c.req.json()
   try {
-    check('my memo', String(wallet), String(issuedAt), String(signature))
     const memo =
       said === undefined || said === null
         ? await readMemo(String(wallet))
         : await writeMemo(String(wallet), String(said))
     return c.json({ memo })
   } catch (err) {
-    if (err instanceof ProofError || err instanceof MemoError) return c.json({ error: err.message }, 400)
+    if (err instanceof MemoError) return c.json({ error: err.message }, 400)
     console.error('[memo]', err)
     return c.json({ error: 'could not keep that' }, 500)
   }

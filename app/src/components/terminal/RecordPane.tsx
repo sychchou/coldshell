@@ -175,20 +175,20 @@ export function RecordPane({
    * evening there is something on the screen written by somebody who meant it.
    */
   const openMemo = async () => {
-    if (!publicKey || !signMessage) return
+    if (!publicKey) return
     setNote({ busy: true })
     try {
-      setNote({ memo: (await myMemo(publicKey.toBase58(), signMessage)).memo })
+      setNote({ memo: (await myMemo(publicKey.toBase58())).memo })
     } catch (err) {
       setNote({ error: explain(err) })
     }
   }
 
   const saveMemo = async (said: string) => {
-    if (!publicKey || !signMessage) return
+    if (!publicKey) return
     setNote((at) => ({ ...at, busy: true }))
     try {
-      setNote({ memo: (await keepMemo(publicKey.toBase58(), signMessage, said)).memo })
+      setNote({ memo: (await keepMemo(publicKey.toBase58(), said)).memo })
     } catch (err) {
       setNote((at) => ({ ...at, busy: false, draft: said, error: explain(err) }))
     }
@@ -367,7 +367,7 @@ export function RecordPane({
   useCommands(
     {
       chips: [
-        ...(signMessage && note?.draft === undefined
+        ...(publicKey && note?.draft === undefined
           ? [{ key: 'memo', label: note?.busy ? 'reading…' : 'memo', onClick: openMemo, disabled: note?.busy }]
           : []),
         ...(note?.draft !== undefined
@@ -382,7 +382,7 @@ export function RecordPane({
             ]
           : []),
         ...(note?.memo !== undefined && note.draft === undefined
-          ? [{ key: 'edit', label: note.memo ? 'edit' : 'write one', onClick: () => setNote({ ...note, draft: note.memo?.said ?? '' }) }]
+          ? [{ key: 'edit', label: note.memo ? 'edit memo' : 'write one', onClick: () => setNote({ ...note, draft: note.memo?.said ?? '' }) }]
           : []),
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
