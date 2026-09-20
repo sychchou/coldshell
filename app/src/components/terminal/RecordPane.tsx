@@ -15,10 +15,14 @@ type Stage =
   | { kind: 'asking' }
   | { kind: 'ready' }
   | { kind: 'recording' }
-  | { kind: 'done'; clip: Recording }
+  // `stored` survives a failed signature so a retry does not upload the minute twice, and
+  // `error` rides along with the clip rather than replacing it — losing a recording because a
+  // wallet was locked would be the cruellest possible way to lose a day.
+  | { kind: 'done'; clip: Recording; stored?: Sealed; error?: string }
   | { kind: 'sealing'; clip: Recording; done: number }
   | { kind: 'marking'; clip: Recording; stored: Sealed }
   | { kind: 'sealed'; clip: Recording; stored: Sealed; signature: string }
+  /** The camera itself would not open. Nothing was recorded, so there is nothing to keep. */
   | { kind: 'error'; message: string }
 
 /** Each command's output, kept in the order it was run. */
@@ -109,17 +113,20 @@ export function RecordPane({
    * Two steps, in this order. The clip goes up first because the chain records its hash: marking
    * a day whose recording never arrived would put a promise on the ledger with nothing behind it.
    */
-  const sealClip = async (clip: Recording) => {
+  const sealClip = async (clip: Recording, already?: Sealed) => {
     if (!publicKey || !signTransaction || day === null) return
     const wallet = publicKey.toBase58()
-    setStage({ kind: 'sealing', clip, done: 0 })
+    let stored = already
     try {
-      const stored = await seal(
-        clip.blob,
-        { wallet, shell, day: day + 1, sha256: clip.sha256 },
-        (fraction) => setStage({ kind: 'sealing', clip, done: fraction }),
-      )
-      release()
+      if (!stored) {
+        setStage({ kind: 'sealing', clip, done: 0 })
+        stored = await seal(
+          clip.blob,
+          { wallet, shell, day: day + 1, sha256: clip.sha256 },
+          (fraction) => setStage({ kind: 'sealing', clip, done: fraction }),
+        )
+        release()
+      }
       setStage({ kind: 'marking', clip, stored })
       const prepared = await recordDayTx(wallet, day, stored.sha256)
       const signature = await sendPrepared(connection, signTransaction, prepared)
@@ -128,7 +135,8 @@ export function RecordPane({
       setStage({ kind: 'sealed', clip, stored, signature })
       await view.refresh()
     } catch (err) {
-      setStage({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      // Back to where the clip still exists, carrying whatever already reached the server.
+      setStage({ kind: 'done', clip, stored, error: err instanceof Error ? err.message : String(err) })
     }
   }
 
@@ -258,11 +266,12 @@ export function RecordPane({
                             { key: 'again', label: 'record again', onClick: start },
                             {
                               key: 'seal',
-                              label: 'seal',
+                              // A clip that already reached the server only needs the signature.
+                              label: stage.stored ? 'sign again' : stage.error ? 'seal again' : 'seal',
                               tone: 'yes' as const,
                               // Sealing sends the clip away and marks the day, so it needs both a
                               // wallet and a day of a run to mark.
-                              onClick: () => sealClip(stage.clip),
+                              onClick: () => sealClip(stage.clip, stage.stored),
                               disabled: !publicKey || day === null,
                             },
                           ]
@@ -288,6 +297,9 @@ export function RecordPane({
   )
 
   useScrollOutput([stage.kind, log.length, claiming])
+
+  // The camera block that owns the stream: the last one printed.
+  const liveCamera = log.reduce((id, entry) => (entry.command === 'camera' ? entry.id : id), -1)
 
   return (
     <>
@@ -330,7 +342,9 @@ export function RecordPane({
             <p className="term-line">{QUESTIONS[entry.question]}</p>
           </div>
         ) : (
-          <div className="term-entry" key={entry.id}>
+          // Output accumulates, but a camera does not: only the newest block owns the stream.
+          // Every one of them rendering a preview is two cameras on one screen.
+          <div className="term-entry" key={entry.id} data-live={entry.id === liveCamera || undefined}>
             <p className="term-prompt">camera</p>
             {!mimeType ? (
               <p className="term-line term-bad">this browser cannot record. use chrome.</p>
@@ -341,7 +355,9 @@ export function RecordPane({
                   <dd>{mimeType}</dd>
                   <dt>status</dt>
                   <dd>
-                    {stage.kind === 'asking' ? (
+                    {entry.id !== liveCamera ? (
+                      <span className="term-dim">closed</span>
+                    ) : stage.kind === 'asking' ? (
                       'asking…'
                     ) : stage.kind === 'error' ? (
                       <span className="term-bad">{stage.message}</span>
@@ -354,14 +370,14 @@ export function RecordPane({
                     )}
                   </dd>
                 </dl>
-                {missing && cameraOn && (
+                {missing && cameraOn && entry.id === liveCamera && (
                   <p className="term-line term-bad">
                     {missing === 'wallet'
                       ? 'connect a wallet first — a recording cannot be sealed without one.'
                       : `you are not in shell ${now.shell}. register to start one.`}
                   </p>
                 )}
-                {cameraOn && (
+                {cameraOn && entry.id === liveCamera && (
                   <div className="record-stage">
                     <video ref={videoRef} muted playsInline className="record-preview" />
                     {stage.kind === 'recording' && (
@@ -392,8 +408,18 @@ export function RecordPane({
             <dt>sha256</dt>
             <dd>{stage.clip.sha256.slice(0, 16)}…</dd>
           </dl>
-          {stage.kind === 'done' && (
+          {stage.kind === 'done' && !stage.error && !stage.stored && (
             <p className="term-line term-dim">nothing has left this browser yet.</p>
+          )}
+          {stage.kind === 'done' && stage.error && (
+            <>
+              <p className="term-line term-bad">{stage.error}</p>
+              <p className="term-line term-dim">
+                {stage.stored
+                  ? 'the clip is stored — only the signature is missing. sign again when the wallet is ready.'
+                  : 'the recording is still here. try again when the wallet is ready.'}
+              </p>
+            </>
           )}
           {stage.kind === 'sealing' && (
             <p className="term-line">
