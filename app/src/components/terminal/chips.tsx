@@ -95,7 +95,15 @@ export function ChipBar({ commands, onReset }: { commands: Commands; onReset: ()
       <span className="chip-commands">
         {chips.map((chip) =>
           chip.href ? (
-            <a key={chip.key} className="chip" href={chip.href} target="_blank" rel="noopener noreferrer">
+            <a
+              key={chip.key}
+              className="chip"
+              href={chip.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-tone={chip.tone}
+              onClick={chip.onClick}
+            >
               {chip.label} ↗
             </a>
           ) : (

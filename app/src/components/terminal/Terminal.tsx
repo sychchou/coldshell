@@ -14,7 +14,7 @@ type TabKey = 'claim' | 'record' | 'next' | 'community'
 const TABS: { key: TabKey; label: string }[] = [
   // First on the bar and first to open: a week finished is the one thing worth interrupting for.
   { key: 'claim', label: 'claim' },
-  { key: 'record', label: 'record' },
+  { key: 'record', label: 'my page' },
   { key: 'next', label: 'register' },
   { key: 'community', label: 'community' },
 ]

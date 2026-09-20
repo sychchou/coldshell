@@ -119,7 +119,6 @@ export function RecordPane({
   // and the instruction cannot disagree about which week this is.
   const shellOf = (index: number) =>
     run ? run.firstShell + Math.floor(index / DAYS_PER_SHELL) : now.shell
-  const shell = shellOf(day ?? 0)
 
   /**
    * Two steps, in this order. The clip goes up first because the chain records its hash: marking
@@ -316,7 +315,16 @@ export function RecordPane({
           },
         ]
       default:
-        return [{ key: 'camera', label: 'camera', onClick: openCamera, disabled: !mimeType }]
+        return [
+          {
+            key: 'camera',
+            label: 'camera',
+            // Green when there is a day with nothing in it and time left on it.
+            tone: empty.length > 0 ? ('yes' as const) : undefined,
+            onClick: openCamera,
+            disabled: !mimeType,
+          },
+        ]
     }
   }
 
@@ -344,7 +352,7 @@ export function RecordPane({
 
   return (
     <>
-      <p className="term-prompt">record --shell {shell}</p>
+      <p className="term-prompt">my page</p>
       <dl className="term-rows">
         <dt>date</dt>
         <dd>

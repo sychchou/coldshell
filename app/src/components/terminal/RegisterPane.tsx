@@ -66,6 +66,8 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
   const [stake, setStake] = useState<Entry | null>(null)
   const [order, setOrder] = useState<Field[]>([])
   const [paid, setPaid] = useState<Payment>({ kind: 'idle' })
+  // Agreeing to terms nobody opened is not agreement, so the y is not there until they are.
+  const [read, setRead] = useState(false)
 
   const editing = shells?.editing || stake?.editing
   const shellsDone = shells && !shells.editing ? Number(shells.value) : null
@@ -148,8 +150,14 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
               ? [
                   ...(paid.kind === 'agreeing'
                     ? [
-                        { key: 'rules', label: 'rules', href: RULES_URL },
-                        { key: 'agree', label: 'y', tone: 'yes' as const, onClick: pay },
+                        {
+                          key: 'rules',
+                          label: 'rules',
+                          href: RULES_URL,
+                          tone: read ? undefined : ('yes' as const),
+                          onClick: () => setRead(true),
+                        },
+                        { key: 'agree', label: 'y', tone: 'yes' as const, onClick: pay, disabled: !read },
                         {
                           key: 'decline',
                           label: 'n',
@@ -172,7 +180,7 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
           ],
       back: order.length > 0 ? () => cancel(order[order.length - 1]) : undefined,
     },
-    [editing, shellsDone, stakeDone, ready, order.length, publicKey, paid.kind, run.run],
+    [editing, shellsDone, stakeDone, ready, order.length, publicKey, paid.kind, read, run.run],
     active,
   )
 
@@ -248,9 +256,11 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
                   ? `$${stakeDone} for shell ${first}${shellsDone > 1 ? ` – ${first + shellsDone - 1}` : ''}. a week you finish comes back whole; a week with a day missing does not come back at all.`
                   : 'a week you finish comes back whole; a week with a day missing does not come back at all.'}
               </p>
-              <p className="term-line">have you read the rules, and do you agree to them?</p>
+              <p className="term-line">
+                {read ? 'do you agree to them?' : 'the rules are short. read them and come back.'}
+              </p>
               <p className="term-line term-dim">
-                y — place the stake · n — not yet · rules — read them first
+                {read ? 'y — place the stake · n — not yet' : 'rules — open them · n — not yet'}
               </p>
             </>
           )}
