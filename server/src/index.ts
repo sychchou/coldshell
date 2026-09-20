@@ -141,7 +141,7 @@ app.get('/api/film/:token', (c) => {
     links.delete(c.req.param('token'))
     return c.json({ error: 'that link has expired' }, 404)
   }
-  c.header('content-type', 'video/mp4')
+  c.header('content-type', link.name.endsWith('.webm') ? 'video/webm' : 'video/mp4')
   c.header('content-disposition', `attachment; filename="${link.name}"`)
   return c.body(Readable.toWeb(createReadStream(link.path)) as ReadableStream)
 })

@@ -6,16 +6,28 @@ export const MIN_MS = 60_000
 export const MAX_MS = 10 * 60_000
 
 /**
- * The best container this browser can actually record. Chrome and Firefox give WebM; Safari
- * only learned MediaRecorder recently and gives MP4, so the list has to end there.
+ * What to record in, best first.
+ *
+ * H.264 leads, though VP9 compresses better, and the reason is what happens at the end of a run.
+ * The minutes are joined into one film, and clips that already share a codec are joined by
+ * copying the streams — seconds, and not a frame re-encoded. Anything else has to be encoded
+ * again on a server, which took over a minute per clip in testing and would take an hour for a
+ * ten-week run.
+ *
+ * The encoding is not saved by choosing H.264; it happens either way, in hardware, while you
+ * record. It is only a question of which side of the upload it happens on. And a VP9 film plays
+ * in a browser and almost nowhere else: not QuickTime, not Safari, not most editors — which
+ * matters for a file people are given to keep and cut up.
  */
 export function pickMimeType() {
   const candidates = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4',
+    'video/webm;codecs=h264,opus',
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
-    'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4',
   ]
   if (typeof MediaRecorder === 'undefined') return null
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? null
@@ -32,7 +44,7 @@ export const CONSTRAINTS: MediaStreamConstraints = {
 
 export type Recording = {
   blob: Blob
-  /** Measured while recording: a WebM from MediaRecorder carries no usable duration of its own. */
+  /** Measured while recording: what MediaRecorder writes carries no usable duration of its own. */
   ms: number
   sha256: string
   type: string

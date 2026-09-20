@@ -95,14 +95,30 @@ const run = (args: string[]) =>
   })
 
 /**
+ * The container a set of clips belongs in.
+ *
+ * It follows what is inside rather than what we would like: H.264 and AAC make a real mp4 that
+ * plays and edits everywhere, VP9 and Opus make a webm that plays in browsers and little else,
+ * and calling the second one `.mp4` — which this did at first — produces a file that opens
+ * nowhere and lies about why.
+ *
+ * Clips from two different browsers cannot be copied at all, so that set is going to be encoded
+ * whatever happens, and encoding produces H.264.
+ */
+export function containerFor(found: Part[]) {
+  const mp4 = found.filter((part) => part.path.endsWith('.mp4')).length
+  return mp4 === found.length || mp4 > 0 ? 'mp4' : 'webm'
+}
+
+/**
  * Joins the parts into one file.
  *
- * Every clip comes out of the same browser pipeline, so stream copy is almost always possible and
- * the film is then the original minutes untouched — no generation loss, and seconds rather than
- * minutes of work. Only a run recorded across different devices needs re-encoding, and that is
- * the fallback rather than the rule.
+ * Clips that share a codec are joined by copying the streams: seconds of work, not a frame
+ * re-encoded, and the film is the original minutes untouched. A run recorded across different
+ * devices cannot be copied and has to be encoded again — slow enough that it is worth avoiding,
+ * which is why the browser records H.264 in the first place.
  *
- * The remux first is not optional: a WebM from MediaRecorder carries no duration, which is why
+ * The remux first is not optional: what MediaRecorder writes carries no duration, which is why
  * the length is timed while recording, and concatenating those directly leaves a file whose
  * timeline players disagree about.
  */
@@ -124,13 +140,17 @@ export async function stitch(found: Part[], out: string) {
     try {
       await run(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', out])
     } catch {
-      // Different cameras, different sizes: the only way to make one film of them is to make
-      // one video of them.
+      // Different cameras, different sizes: the only way to make one film of them is to make one
+      // video of them. That lands in mp4 whatever the parts were, because what comes out is
+      // H.264 and a webm cannot hold it.
+      if (!out.endsWith('.mp4')) throw new FilmError('these clips cannot be joined without re-encoding')
       await run([
         '-f', 'concat', '-safe', '0', '-i', list,
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+        '-pix_fmt', 'yuv420p',
         '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:-1:-1,fps=24',
         '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
         out,
       ])
     }
@@ -174,7 +194,7 @@ export async function film(wallet: string): Promise<Film> {
   if (!found.length) throw new FilmError('nothing has been recorded yet')
 
   const last = open.firstShell + open.shells - 1
-  const name = `coldshell-shell-${open.firstShell}${open.shells > 1 ? `-${last}` : ''}.mp4`
+  const name = `coldshell-shell-${open.firstShell}${open.shells > 1 ? `-${last}` : ''}.${containerFor(found)}`
   const path = resolve(join(config.films.dir, wallet, name))
 
   // A run that has since recorded another day is a different film, so the size is not enough to
