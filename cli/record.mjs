@@ -1,37 +1,48 @@
 /**
  * A minute of yourself, recorded in a terminal.
  *
- * One ffmpeg, two outputs: the file that gets kept, and a stream of small raw frames that get
- * drawn here. So the preview is the recording — not a separate camera session that happens to
- * look similar — and what you see is what went in.
+ * One ffmpeg, two outputs: the file that gets kept, and a stream of frames that get drawn here.
+ * So the preview is the recording — not a separate camera session that happens to look similar —
+ * and what you watch is what went in.
  *
- * The preview stays deliberately coarse. Nobody watches these, including the person making one,
- * and a preview good enough to study your own face is a preview good enough to start editing it.
- * It answers "am I in frame, is the light on", and stops there.
+ * How well it is drawn depends on the terminal, and the good case is genuinely good: kitty,
+ * ghostty, WezTerm and iTerm2 all put real pixels on the screen. Everything else gets half
+ * blocks, which is enough for the job — this answers "am I in frame, is the light on", and a
+ * preview good enough to study your own face is a preview good enough to start editing it.
  */
 
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, rm, stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import { platform } from 'node:os'
 import { dirname } from 'node:path'
+import { detect, pngFramer, rawFramer, renderer, wantsPng } from './preview.mjs'
 
 const MIN_MS = 60_000
 const MAX_MS = 10 * 60_000
 
 const out = process.argv[2] ?? `minute-${new Date().toISOString().slice(0, 10)}.mp4`
-const cols = Math.min(72, Math.max(32, (process.stdout.columns ?? 80) - 8))
-const W = cols
-const H = Math.round((W * 9) / 16) * 2 // two pixels to a row, so the aspect survives
+const live = process.stdout.isTTY === true
+const mode = live ? detect() : 'ascii'
+const draw = renderer(mode)
+
+// Take the whole window. The old cap at 72 columns was throwing away most of the picture on any
+// terminal somebody had actually made big.
+const cols = Math.max(24, (process.stdout.columns ?? 80))
+const termRows = Math.max(10, (process.stdout.rows ?? 24) - 4) // room for the status lines
+
+// A picture gets the rows; blocks get pixels, two to a row, keeping 16:9.
+const rows = Math.min(termRows, 40)
+const W = wantsPng(mode) ? Math.round((rows * 2 * 16) / 9) : cols
+const H = wantsPng(mode) ? rows * 2 : Math.min(termRows * 2, Math.round((cols * 9) / 16) * 2)
 
 /** Where the camera is, per platform. The rest of the command is the same everywhere. */
 function input() {
-  // A moving picture that is not a camera, for checking the plumbing where there is no camera
-  // to point at — or no permission to open the one there is.
+  // A moving picture that is not a camera, for checking the plumbing where there is no camera to
+  // point at — or no permission to open the one there is. `-re` or it generates as fast as the
+  // machine allows, and a six second test writes half a minute of video.
   if (process.env.COLDSHELL_CAMERA === 'test') {
-    // `-re` or it generates as fast as the machine allows, and a six second test writes half a
-    // minute of video.
     return ['-re', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30', '-re', '-f', 'lavfi', '-i', 'sine=frequency=440']
   }
   switch (platform()) {
@@ -44,6 +55,11 @@ function input() {
   }
 }
 
+/** The second output: pixels for a picture, or a small raw frame for blocks. */
+const previewOut = wantsPng(mode)
+  ? ['-map', '0:v', '-f', 'image2pipe', '-vcodec', 'png', '-s', `${W}x${H}`, '-r', '12', 'pipe:1']
+  : ['-map', '0:v', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${W}x${H}`, '-r', '12', 'pipe:1']
+
 const clock = (ms) => {
   const s = Math.floor(ms / 1000)
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -54,70 +70,54 @@ await mkdir(dirname(out), { recursive: true }).catch(() => {})
 const ff = spawn('ffmpeg', [
   '-hide_banner', '-loglevel', 'error',
   ...input(),
-  // What is kept.
   '-map', '0', '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', '1200k',
   '-pix_fmt', 'yuv420p', '-r', '24', '-c:a', 'aac', '-b:a', '64k',
   '-movflags', '+faststart', '-y', out,
-  // What is drawn. Small and slow on purpose: this is a viewfinder, not a monitor.
-  '-map', '0:v', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${W}x${H}`, '-r', '12', 'pipe:1',
+  ...previewOut,
 ], { stdio: ['pipe', 'pipe', 'inherit'] })
 
 const started = Date.now()
+let stopping = false
+let frames = 0
+
 const LIMIT = Number(process.env.COLDSHELL_SECONDS ?? 0)
 if (LIMIT) setTimeout(() => stop(), LIMIT * 1000)
-let buf = Buffer.alloc(0)
-let stopping = false
-const FRAME = W * H * 3
 
-// Drawing over the whole screen is only polite when there is a screen. Piped into something
-// else — a test, a log — it prints lines instead of painting frames.
-const live = process.stdout.isTTY === true
-if (live) process.stdout.write('\x1b[?1049h\x1b[?25l') // its own screen, no cursor
+if (live) process.stdout.write('\x1b[?1049h\x1b[?25l\x1b[2J')
+const restore = () => {
+  if (!live) return
+  if (mode === 'kitty') process.stdout.write('\x1b_Ga=d,d=A,q=2\x1b\\')
+  process.stdout.write('\x1b[?25h\x1b[?1049l')
+}
 
-const restore = () => live && process.stdout.write('\x1b[?25h\x1b[?1049l')
-
-let painted = 0
-
-function paint(f) {
+function status() {
   const ms = Date.now() - started
   const enough = ms >= MIN_MS
-  painted++
+  return (
+    '\n' +
+    (enough
+      ? `  \x1b[31m●\x1b[0m ${clock(ms)}   \x1b[32mlong enough\x1b[0m\x1b[K\n`
+      : `  \x1b[31m●\x1b[0m ${clock(ms)}   ${Math.ceil((MIN_MS - ms) / 1000)}s to go\x1b[K\n`) +
+    (enough
+      ? '  \x1b[2menter\x1b[0m keep it    \x1b[2mctrl-c\x1b[0m throw it away\x1b[K\n'
+      : '  \x1b[2mctrl-c\x1b[0m throw it away\x1b[K\n')
+  )
+}
+
+function frame(data) {
+  const ms = Date.now() - started
+  frames++
   if (!live) {
-    if (painted % 12 === 0) console.log(`  frame ${painted}  ${clock(ms)}  ${enough ? 'long enough' : `${Math.ceil((MIN_MS - ms) / 1000)}s to go`}`)
-    if (ms >= MAX_MS) stop()
-    return
-  }
-  const rows = ['\x1b[H']
-  for (let y = 0; y < H; y += 2) {
-    for (let x = 0; x < W; x++) {
-      const t = (y * W + x) * 3
-      const b = ((y + 1) * W + x) * 3
-      rows.push(`\x1b[38;2;${f[t]};${f[t + 1]};${f[t + 2]}m\x1b[48;2;${f[b]};${f[b + 1]};${f[b + 2]}m▀`)
+    if (frames % 12 === 0) {
+      console.log(`  frame ${frames}  ${clock(ms)}  ${ms >= MIN_MS ? 'long enough' : `${Math.ceil((MIN_MS - ms) / 1000)}s to go`}`)
     }
-    rows.push('\x1b[0m\n')
+  } else {
+    process.stdout.write(draw(data, { width: W, height: H, rows }) + status())
   }
-  rows.push('\n')
-  rows.push(
-    enough
-      ? `  \x1b[31m●\x1b[0m ${clock(ms)}   \x1b[32mlong enough\x1b[0m\n`
-      : `  \x1b[31m●\x1b[0m ${clock(ms)}   ${Math.ceil((MIN_MS - ms) / 1000)}s to go\n`,
-  )
-  rows.push(
-    enough
-      ? '  \x1b[2menter\x1b[0m keep it    \x1b[2mctrl-c\x1b[0m throw it away\n'
-      : '  \x1b[2mctrl-c\x1b[0m throw it away\n',
-  )
-  process.stdout.write(rows.join(''))
   if (ms >= MAX_MS) stop()
 }
 
-ff.stdout.on('data', (chunk) => {
-  buf = buf.length ? Buffer.concat([buf, chunk]) : chunk
-  while (buf.length >= FRAME) {
-    paint(buf.subarray(0, FRAME))
-    buf = buf.subarray(FRAME)
-  }
-})
+ff.stdout.on('data', wantsPng(mode) ? pngFramer(frame) : rawFramer(W * H * 3, frame))
 
 /** `q` rather than a signal: ffmpeg finishes the file, and a half-written mp4 plays nowhere. */
 function stop() {
@@ -129,28 +129,28 @@ function stop() {
 if (process.stdin.isTTY) {
   process.stdin.setRawMode(true)
   process.stdin.resume()
+  process.stdin.on('data', (key) => {
+    if (key[0] === 3) {
+      stopping = true
+      ff.kill('SIGKILL')
+      restore()
+      void rm(out, { force: true }).then(() => {
+        console.log('\n  thrown away. nothing was kept.\n')
+        process.exit(0)
+      })
+      return
+    }
+    if (key[0] === 13 && Date.now() - started >= MIN_MS) stop()
+  })
 }
-process.stdin.on('data', (key) => {
-  if (key[0] === 3) { // ctrl-c
-    stopping = true
-    ff.kill('SIGKILL')
-    restore()
-    void rm(out, { force: true }).then(() => {
-      console.log('\n  thrown away. nothing was kept.\n')
-      process.exit(0)
-    })
-    return
-  }
-  if (key[0] === 13 && Date.now() - started >= MIN_MS) stop()
-})
 
 /**
  * How long the file runs, according to the file.
  *
  * The stopwatch is for the screen — you cannot ask a file being written how long it is. What
  * counts afterwards is what the file says, and an mp4 written by ffmpeg says. This is the one
- * thing the browser could never do: MediaRecorder writes no duration at all, so the length had
- * to be timed and then trusted.
+ * thing the browser could never do: MediaRecorder writes no duration at all, so the length had to
+ * be timed and then trusted.
  */
 const lengthOf = (path) =>
   new Promise((done) => {
@@ -163,7 +163,7 @@ const lengthOf = (path) =>
 
 ff.on('close', async () => {
   restore()
-  if (stopping === false) return process.exit(1)
+  if (!stopping) process.exit(1)
   try {
     const { size } = await stat(out)
     const seconds = await lengthOf(out)

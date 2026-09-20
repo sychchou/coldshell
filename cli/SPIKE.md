@@ -40,17 +40,11 @@ permission belongs to the terminal application**, not to us. A background shell 
 cannot even raise the prompt — which is why this is only half answered, and why the first run has
 to happen in a terminal the person opened themselves.
 
-`preview.mjs` draws the frames. Two pixels to a character — upper half block in the foreground
-colour, lower half in the background — reading raw rgb24 on stdin, so ffmpeg captures and this
-only draws. Checked against `testsrc2`.
+`preview.mjs` draws the frames, as well as the terminal allows. **kitty, ghostty, WezTerm and
+iTerm2 all draw real pixels** — kitty's graphics protocol and iTerm2's inline images both take a
+PNG and put it on the screen — and everything else gets half blocks, two pixels to a character.
+The terminal is asked once at startup; `COLDSHELL_PREVIEW=kitty|iterm|blocks|ascii` overrides the
+guess, which matters for a terminal that draws pictures and is not on the list.
 
-```sh
-ffmpeg -f avfoundation -pixel_format uyvy422 -framerate 15 -video_size 640x480 -i "0" \
-  -f rawvideo -pix_fmt rgb24 -s 80x48 - 2>/dev/null | node cli/preview.mjs
-```
-
-`node cli/preview.mjs ascii` for terminals without truecolour.
-
-It is deliberately small and rough. Nobody watches these recordings, including the person making
-one, and a preview good enough to study your own face is a preview good enough to start editing
-it. This answers "am I in frame, is the light on", and nothing past that.
+It takes the whole window now. The first version capped the picture at 72 columns, which threw
+most of it away on any terminal somebody had made big.
