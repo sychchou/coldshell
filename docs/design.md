@@ -1,8 +1,12 @@
 # coldshell design notes
 
 The decisions carried over from the earlier project, written down as they were settled in chat.
-This is an internal memo, so unsettled questions and backlog sit next to finished things — the
-public document is [RULES.md](../RULES.md).
+This is an internal memo rather than a public document — that one is [RULES.md](../RULES.md).
+
+Everything above [the list](#the-list) is decided and changes only when the decision does.
+**[The list](#the-list) is the moving part**, and it is where anything still to do belongs: put
+it there when it comes up, take it out when it ships, and do not let it drift from what the code
+actually does.
 
 ## What changed
 
@@ -143,6 +147,9 @@ of it exists.
 
 ## The burn
 
+**None of this is built.** It is on [the list](#the-list); until it ships, every clip and every
+film is kept indefinitely and this section describes an intention rather than the code.
+
 Once it is delivered, nothing stays on our side. "It is not here any more" is a keepable promise in
 a way "we don't look" is not, and holding thousands of people's private videos forever is a
 liability that eventually, certainly, goes wrong.
@@ -189,30 +196,80 @@ Exactly two things. Neither is possible with a database.
 
 > We make money when you fail. So we put the record somewhere we cannot reach it.
 
-### To revisit: removing the oracle
+### The oracle is gone — done
 
-Currently an oracle signs `record_day`. The judgement is narrow — did a file over sixty seconds
-arrive today — but it is still our judgement.
+`record_day` is signed by the participant. The block time is the evidence, we pay the fee and
+testify to nothing, and the proof path has nobody left to trust. What remains is "is that file
+really a minute of video", which is a question only the participant can lose on.
 
-**If the participant signs instead**, the block time is the evidence, and we pay the fee while
-testifying to nothing. The proof path has nobody left to trust. What remains is "is that file
-really a minute of video", and that is a question only the participant can lose on.
+## The list
 
-## Not settled yet
+What is left, in the order it has to happen. Everything above this line is decided; everything
+below is not built or not settled. Keep it current — this is the memo's only moving part.
 
-- How the joined film is delivered (email? a download link?)
-- The community tab — a window where participants leave a line each. Who may write (participants
-  only, most likely); staff deletion needed from day one.
-- A CLI. Low priority — a student studying does not install a terminal app. The web terminal
-  already gives that feeling at zero installation cost.
+### Before the trial starts (Monday 2026-09-28)
 
-## To check first (before building anything else)
+- **Seal on devnet, end to end.** Record, upload, sign, see the day go green. It has been done
+  locally and never once against the deployed program, which makes it the largest unknown in the
+  whole trial. Everything else on this list is smaller than this.
+- **Download a real film through the site.** The link on screen is relative, so it goes through
+  Vercel's rewrite to Railway, and eighty megabytes has never travelled that path. If it will
+  not, point the download at `PUBLIC_URL` the way the mailed link already does.
+- **Mail one film to a real address.** The message was checked against a local SMTP sink, so the
+  only untested part is whether Gmail accepts the App Password. `SMTP_USER`, `SMTP_PASS` and
+  `PUBLIC_URL` on Railway; without them the screen offers the download alone, which is correct
+  but not what the trial was told.
+- **Check the volume is mounted at `/data`.** Clips, films, memos, the room and download tokens
+  all live there now. Until this deploy the memos and the room were not on it at all, and every
+  deploy was quietly taking them.
+- **Railway auto-deploy.** Eject from the upstream template first — the switch is not offered
+  while the service is template-linked — then authorise Railway's GitHub App on the repository
+  under the current account. Reconnecting the source alone changes nothing.
+- **A missed day has to read as missed.** Skip one on purpose and look at the calendar.
 
-**The upload pipeline.** It is the one unknown left.
+### Frozen until the trial ends (2026-10-05)
 
-- What a minute of 720p actually weighs, and how long an upload feels
-- Recording in the browser (`MediaRecorder`) vs picking a file — which is easier
-- R2 presigned URLs, direct (going through the server falls over)
-- How to check the length in the browser
+**The `Run` layout cannot change.** Two wallets are already bricked by layout changes made under
+a live run: the program reads 84 bytes and those accounts hold 82, so they cannot be claimed,
+swept or even closed, and the devnet USDC in them is gone for good. Any change to `state.rs`
+waits, or it takes the trial's five runs with it.
 
-The speech-verification spike is gone. No whisper, no word lists, no normalisation, no matching.
+### After the trial
+
+- **Delivery, then the burn.** None of the burn exists. The films, the clips and the tokens are
+  all kept forever right now, which is the opposite of what this document promises and the one
+  place where the promise is currently louder than the code. It needs: a delivery that is
+  recorded as confirmed, a grace period after it, then deletion of originals and film together,
+  and `your shell burns in 6 days` on the screen well before it happens.
+- **Automatic posting at settlement.** Today the film is posted because somebody pressed send,
+  which makes the mail worth about as much as the download beside it. Posting it the moment the
+  week settles is the version worth having, and it needs an address the server keeps — which is
+  exactly what was just decided against. So the decision has to be reopened, not worked around:
+  the honest shape is an address kept until the film is delivered and deleted with it, in the
+  same sweep as the burn above.
+- **Refunds.** Somebody will want their stake back before their run is over, and there is no
+  answer at all today — not a policy, not an instruction, not a screen. Decide what the answer
+  is before somebody asks, because the first person to ask will be owed one.
+- **More than one run at a time.** A wallet holds exactly one, so a second means closing the
+  first. Fine for a trial, wrong for anybody who wants to start a new run before collecting the
+  last one.
+- **Staff deletion in the room.** The room has none. One line from one person is all it takes,
+  and right now the only remedy is a deploy.
+- **Clips to R2.** They go through the server to a mounted volume. That is the right shape for
+  five people and the wrong one for fifty; the browser does not have to notice the change.
+- **Encrypting in the browser.** The key derives from a wallet signature and stays with the
+  participant, and "we cannot watch it" replaces "we do not". Check first that the derivation is
+  deterministic per wallet — if it is not, the whole idea fails quietly and loses films.
+- **A CLI.** Low priority. A student studying does not install a terminal app, and the web
+  terminal already gives that feeling at no installation cost.
+
+### Settled, kept here so it is not re-litigated
+
+- The upload pipeline was the last unknown and is answered: the browser records with
+  `MediaRecorder` at 1.2 Mbps, times the length itself because the file does not say, and posts
+  the bytes straight to the server. It records H.264 so the film is a two-second stream copy
+  instead of a six-minute re-encode. A minute is about 9 MB; a week is about 80.
+- The speech-verification spike is gone. No whisper, no word lists, no normalisation, no
+  matching.
+- The film is delivered as a link and never as an attachment: a week of minutes is 80 MB and a
+  mailbox takes 25.
