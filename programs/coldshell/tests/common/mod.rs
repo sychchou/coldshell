@@ -128,12 +128,16 @@ pub fn new_user(svm: &mut LiteSVM, usdc: u64) -> Keypair {
 
 // ── The clock, mirrored so a test reads next to the handler ──────────────────
 
+/// Every test runs at UTC unless it is testing the offset itself, so the harness keeps one
+/// number and every helper agrees with it.
+pub const OFFSET: i16 = 0;
+
 pub fn shell_start(index: u32) -> i64 {
-    SHELL_EPOCH_TS + i64::from(index) * WEEK_SECONDS
+    SHELL_EPOCH_TS + i64::from(index) * WEEK_SECONDS - i64::from(OFFSET) * 60
 }
 
 pub fn current_shell(now: i64) -> u32 {
-    u32::try_from((now - SHELL_EPOCH_TS) / WEEK_SECONDS).unwrap()
+    u32::try_from((now + i64::from(OFFSET) * 60 - SHELL_EPOCH_TS) / WEEK_SECONDS).unwrap()
 }
 
 pub fn day_start(first_shell: u32, day: u16) -> i64 {
@@ -152,9 +156,20 @@ pub fn deadline(first_shell: u32, offset: u8) -> i64 {
 // ── Instructions ─────────────────────────────────────────────────────────────
 
 pub fn enter_ix(user: &Pubkey, payer: &Pubkey, shells: u8, stake: u64) -> Instruction {
+    enter_ix_at(user, payer, shells, stake, OFFSET)
+}
+
+/// For the tests that are about where a run keeps its days rather than what it costs.
+pub fn enter_ix_at(
+    user: &Pubkey,
+    payer: &Pubkey,
+    shells: u8,
+    stake: u64,
+    utc_offset: i16,
+) -> Instruction {
     Instruction::new_with_bytes(
         coldshell::id(),
-        &coldshell::instruction::Enter { shells, stake }.data(),
+        &coldshell::instruction::Enter { shells, stake, utc_offset }.data(),
         coldshell::accounts::Enter {
             user: *user,
             payer: *payer,

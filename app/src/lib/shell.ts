@@ -20,6 +20,9 @@ export const SHELL_EPOCH = (() => {
   return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate())
 })()
 
+/** Where this browser keeps its days, in minutes east of UTC. */
+export const utcOffset = () => -new Date().getTimezoneOffset()
+
 /** A day lasts minutes rather than hours. Kept under the old name for the panes that read it. */
 export const TEST_MODE = SHORT_CLOCK
 

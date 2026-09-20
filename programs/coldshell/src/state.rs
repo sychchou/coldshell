@@ -25,19 +25,35 @@ pub struct Run {
     /// a week came back or was forfeited.
     pub swept: u16,
     pub started_at: i64,
+    /// Where this run keeps its days, in minutes east of UTC.
+    ///
+    /// Said once, at the start, and never again — otherwise a day could be dodged by moving the
+    /// clock after missing it. Nothing is gained by lying about it either: whatever it says, a
+    /// week is seven of that run's own days.
+    pub utc_offset: i16,
     pub bump: u8,
 }
 
 impl Run {
+    /// Midnight, where this run lives.
+    ///
+    /// Every boundary below is the participant's own, not UTC's. The chain has one clock and no
+    /// way to learn anybody's, so the run carries the answer and the program does the shifting.
+    fn midnight(&self, weeks: i64, days: i64) -> Result<i64> {
+        weeks
+            .checked_mul(WEEK_SECONDS)
+            .and_then(|w| w.checked_add(days.checked_mul(DAY_SECONDS)?))
+            .and_then(|elapsed| elapsed.checked_add(SHELL_EPOCH_TS))
+            .and_then(|utc| utc.checked_sub(i64::from(self.utc_offset) * 60))
+            .ok_or(ErrorCode::MathOverflow.into())
+    }
+
     /// When a shell of this run begins. `offset` is 0 for the first shell of the run.
     pub fn shell_start(&self, offset: u8) -> Result<i64> {
         let index = i64::from(self.first_shell)
             .checked_add(i64::from(offset))
             .ok_or(ErrorCode::MathOverflow)?;
-        index
-            .checked_mul(WEEK_SECONDS)
-            .and_then(|elapsed| elapsed.checked_add(SHELL_EPOCH_TS))
-            .ok_or(ErrorCode::MathOverflow.into())
+        self.midnight(index, 0)
     }
 
     pub fn shell_end(&self, offset: u8) -> Result<i64> {
@@ -65,12 +81,7 @@ impl Run {
 
     /// When a day of the run begins. `day` counts from 0 across the whole run.
     pub fn day_start(&self, day: u16) -> Result<i64> {
-        let offset = i64::from(day)
-            .checked_mul(DAY_SECONDS)
-            .ok_or(ErrorCode::MathOverflow)?;
-        self.shell_start(0)?
-            .checked_add(offset)
-            .ok_or(ErrorCode::MathOverflow.into())
+        self.midnight(i64::from(self.first_shell), i64::from(day))
     }
 
     pub fn total_days(&self) -> u16 {
@@ -108,11 +119,15 @@ impl Run {
     }
 }
 
-/// The shell a moment falls in, counted from zero. Shell numbers are global: everyone in the
-/// same week shares one.
-pub fn current_shell(now: i64) -> Result<u32> {
+/// The shell a moment falls in for somebody `utc_offset` minutes east of UTC, counted from zero.
+///
+/// Shell numbers are an index, not a cohort: two people in different places are in shell #3 at
+/// slightly different hours, and nothing in this program cares. There is no pool and nobody's
+/// refund depends on anybody else's week.
+pub fn current_shell(now: i64, utc_offset: i16) -> Result<u32> {
     let elapsed = now
-        .checked_sub(SHELL_EPOCH_TS)
+        .checked_add(i64::from(utc_offset) * 60)
+        .and_then(|local| local.checked_sub(SHELL_EPOCH_TS))
         .ok_or(ErrorCode::MathOverflow)?;
     require!(elapsed >= 0, ErrorCode::MathOverflow);
     u32::try_from(elapsed / WEEK_SECONDS).map_err(|_| ErrorCode::MathOverflow.into())
@@ -128,11 +143,11 @@ pub fn current_shell(now: i64) -> Result<u32> {
 /// Before the first shell has begun there is no week under way, so a run paid for then starts at
 /// the first one. Otherwise the program would refuse everybody until the epoch passed, for no
 /// reason anybody could be told.
-pub fn starting_shell(now: i64) -> Result<u32> {
-    if now < SHELL_EPOCH_TS {
+pub fn starting_shell(now: i64, utc_offset: i16) -> Result<u32> {
+    if now.saturating_add(i64::from(utc_offset) * 60) < SHELL_EPOCH_TS {
         return Ok(0);
     }
-    current_shell(now)?
+    current_shell(now, utc_offset)?
         .checked_add(1)
         .ok_or(ErrorCode::MathOverflow.into())
 }

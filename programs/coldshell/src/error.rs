@@ -6,6 +6,8 @@ pub enum ErrorCode {
     InvalidShells,
     #[msg("A stake is between 10 and 200 USDC.")]
     InvalidStake,
+    #[msg("That is not a timezone offset.")]
+    InvalidOffset,
     #[msg("That day is not part of this run.")]
     InvalidDay,
     #[msg("That day has not started yet.")]

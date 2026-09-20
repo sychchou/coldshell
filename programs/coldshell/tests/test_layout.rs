@@ -18,6 +18,7 @@ fn bytes() -> Vec<u8> {
         claimed: 0xaabb,
         swept: 0xccdd,
         started_at: 0x1122_3344_5566_7788,
+        utc_offset: -321,
         bump: 254,
     };
     let mut out = Vec::new();
@@ -26,9 +27,9 @@ fn bytes() -> Vec<u8> {
 }
 
 #[test]
-fn a_run_is_eighty_two_bytes() {
-    assert_eq!(8 + Run::INIT_SPACE, 82);
-    assert_eq!(bytes().len(), 82);
+fn a_run_is_eighty_four_bytes() {
+    assert_eq!(8 + Run::INIT_SPACE, 84);
+    assert_eq!(bytes().len(), 84);
 }
 
 #[test]
@@ -47,5 +48,6 @@ fn every_field_is_where_the_app_looks_for_it() {
     assert_eq!(u16_at(69), 0xaabb);
     assert_eq!(u16_at(71), 0xccdd);
     assert_eq!(i64::from_le_bytes(b[73..81].try_into().unwrap()), 0x1122_3344_5566_7788);
-    assert_eq!(b[81], 254);
+    assert_eq!(i16::from_le_bytes(b[81..83].try_into().unwrap()), -321);
+    assert_eq!(b[83], 254);
 }

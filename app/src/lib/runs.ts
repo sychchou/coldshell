@@ -41,10 +41,12 @@ export type Run = {
   /** One bit per shell, set when that week went to the treasury instead. */
   swept: number
   enteredAt: number
+  /** Where this run keeps its days, in minutes east of UTC. Said once, at the start. */
+  utcOffset: number
 }
 
-/** 8 discriminator + 32 + 4 + 1 + 8 + 16 + 2 + 2 + 8 + 1 */
-export const RUN_SIZE = 82
+/** 8 discriminator + 32 + 4 + 1 + 8 + 16 + 2 + 2 + 8 + 2 + 1 */
+export const RUN_SIZE = 84
 
 export function decodeRun(address: PublicKey, data: Uint8Array): Run {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
@@ -60,6 +62,7 @@ export function decodeRun(address: PublicKey, data: Uint8Array): Run {
     claimed: view.getUint16(69, true),
     swept: view.getUint16(71, true),
     enteredAt: Number(view.getBigInt64(73, true)) * 1000,
+    utcOffset: view.getInt16(81, true),
   }
 }
 
@@ -83,21 +86,30 @@ export async function fetchRun(connection: Connection, user: PublicKey): Promise
 
 // ── The clock, as the program keeps it ──────────────────────────────────────
 
-/** Shell numbers are global and counted from zero: shell #0 is the week the epoch starts. */
-export const currentShell = (now: number) => Math.floor((now - SHELL_EPOCH_MS) / WEEK_MS)
+/**
+ * Shells are counted from zero and anchored to wherever the asker keeps their days. Two people
+ * in different places are in shell #3 at slightly different hours, which nothing here minds:
+ * the number is an index, not a cohort.
+ */
+export const currentShell = (now: number, utcOffset = 0) =>
+  Math.floor((now + utcOffset * 60_000 - SHELL_EPOCH_MS) / WEEK_MS)
 
-export const shellStart = (index: number) => SHELL_EPOCH_MS + index * WEEK_MS
-export const shellEnd = (index: number) => shellStart(index) + WEEK_MS
+export const shellStart = (index: number, utcOffset = 0) =>
+  SHELL_EPOCH_MS + index * WEEK_MS - utcOffset * 60_000
+export const shellEnd = (index: number, utcOffset = 0) => shellStart(index, utcOffset) + WEEK_MS
 
 /**
  * When a shell's money can move. The last day of a week stays recordable for a day after the
  * week itself ends, so settling any earlier would either refuse a week still being finished or
  * take one still being saved.
  */
-export const shellSettles = (index: number) => shellEnd(index) + RECORD_LATE_MS - DAY_MS
-export const claimDeadline = (index: number) => shellSettles(index) + CLAIM_WINDOW_MS
+export const shellSettles = (index: number, utcOffset = 0) =>
+  shellEnd(index, utcOffset) + RECORD_LATE_MS - DAY_MS
+export const claimDeadline = (index: number, utcOffset = 0) =>
+  shellSettles(index, utcOffset) + CLAIM_WINDOW_MS
 
-export const dayStart = (run: Run, day: number) => shellStart(run.firstShell) + day * DAY_MS
+export const dayStart = (run: Run, day: number) =>
+  shellStart(run.firstShell, run.utcOffset) + day * DAY_MS
 export const dayOpens = (run: Run, day: number) => dayStart(run, day) - RECORD_EARLY_MS
 export const dayCloses = (run: Run, day: number) => dayStart(run, day) + RECORD_LATE_MS
 
@@ -130,9 +142,9 @@ export function shellState(run: Run, offset: number, now: number): ShellState {
   const bit = 1 << offset
   if (run.claimed & bit) return 'returned'
   if (run.swept & bit) return 'swept'
-  if (now < shellSettles(run.firstShell + offset)) return 'open'
+  if (now < shellSettles(run.firstShell + offset, run.utcOffset)) return 'open'
   if (!shellComplete(run, offset)) return 'forfeit'
-  return now < claimDeadline(run.firstShell + offset) ? 'claimable' : 'expired'
+  return now < claimDeadline(run.firstShell + offset, run.utcOffset) ? 'claimable' : 'expired'
 }
 
 export const sweepable = (state: ShellState) => state === 'forfeit' || state === 'expired'
@@ -140,7 +152,7 @@ export const sweepable = (state: ShellState) => state === 'forfeit' || state ===
 export const closable = (run: Run, now: number) => {
   const all = (1 << run.shells) - 1
   if ((run.claimed | run.swept) === all) return true
-  return now >= claimDeadline(run.firstShell + run.shells - 1)
+  return now >= claimDeadline(run.firstShell + run.shells - 1, run.utcOffset)
 }
 
 // ── The two instructions that need nobody's permission but ours ──────────────

@@ -84,13 +84,16 @@ export const vaultAta = (user: PublicKey) => usdcAta(runPda(user))
 
 export const nowSeconds = () => Math.floor(Date.now() / 1000)
 
-export const currentShell = (now = nowSeconds()) =>
-  Math.floor((now - SHELL_EPOCH_TS) / WEEK_SECONDS)
+/** The shell a moment falls in for somebody that many minutes east of UTC. */
+export const currentShell = (now = nowSeconds(), utcOffset = 0) =>
+  Math.floor((now + utcOffset * 60 - SHELL_EPOCH_TS) / WEEK_SECONDS)
 
 /** Where a run paid for at `now` would begin: always the next shell. */
-export const startingShell = (now = nowSeconds()) => Math.max(0, currentShell(now) + 1)
+export const startingShell = (now = nowSeconds(), utcOffset = 0) =>
+  Math.max(0, currentShell(now, utcOffset) + 1)
 
-export const shellStart = (index: number) => SHELL_EPOCH_TS + index * WEEK_SECONDS
+export const shellStart = (index: number, utcOffset = 0) =>
+  SHELL_EPOCH_TS + index * WEEK_SECONDS - utcOffset * 60
 
 // ── The run account, read by hand ───────────────────────────────────────────
 
@@ -103,6 +106,8 @@ export type Run = {
   claimed: number
   swept: number
   enteredAt: number
+  /** Where this run keeps its days, in minutes east of UTC. Said once and never again. */
+  utcOffset: number
 }
 
 export async function fetchRun(user: PublicKey): Promise<Run | null> {
@@ -121,19 +126,20 @@ export async function fetchRun(user: PublicKey): Promise<Run | null> {
     claimed: view.getUint16(69, true),
     swept: view.getUint16(71, true),
     enteredAt: Number(view.getBigInt64(73, true)),
+    utcOffset: view.getInt16(81, true),
   }
 }
 
 export const dayStart = (run: Run, day: number) =>
-  shellStart(run.firstShell) + day * DAY_SECONDS
+  shellStart(run.firstShell, run.utcOffset) + day * DAY_SECONDS
 
 export const recorded = (run: Run, day: number) => ((run.days >> BigInt(day)) & 1n) === 1n
 
 export const totalDays = (run: Run) => run.shells * DAYS_PER_SHELL
 
-/** When a shell's money can move: a day after the week ends, where the last day's grace runs out. */
-export const shellSettles = (index: number) =>
-  shellStart(index) + WEEK_SECONDS + RECORD_LATE_SECONDS - DAY_SECONDS
+/** When a shell's money can move: where its last day stops being recordable. */
+export const shellSettles = (index: number, utcOffset = 0) =>
+  shellStart(index, utcOffset) + WEEK_SECONDS + RECORD_LATE_SECONDS - DAY_SECONDS
 
 export function shellComplete(run: Run, offset: number) {
   const mask = ((1n << BigInt(DAYS_PER_SHELL)) - 1n) << BigInt(offset * DAYS_PER_SHELL)
@@ -154,11 +160,12 @@ const meta = (pubkey: PublicKey, isSigner = false, isWritable = false) => ({
   isWritable,
 })
 
-export function enterIx(user: PublicKey, shells: number, stake: bigint) {
-  const data = Buffer.alloc(17)
+export function enterIx(user: PublicKey, shells: number, stake: bigint, utcOffset: number) {
+  const data = Buffer.alloc(19)
   discriminator('enter').copy(data, 0)
   data.writeUInt8(shells, 8)
   data.writeBigUInt64LE(stake, 9)
+  data.writeInt16LE(utcOffset, 17)
   return new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS } from '../config'
-import { closable, fetchRun, shellStart, shellState, type Run, type ShellState } from './runs'
-import { today } from './shell'
+import { closable, dayStart, fetchRun, shellState, type Run, type ShellState } from './runs'
 
 /**
  * What became of one day: recorded, still recordable, gone, or not yet begun.
@@ -81,13 +80,12 @@ export function useRun(): RunView {
   const claimable: number[] = []
 
   if (run) {
-    const { shell, dayOfShell } = today(now)
-    const index = (shell - run.firstShell) * DAYS_PER_SHELL + dayOfShell - 1
+    // A run keeps the days it was opened with. Somebody who travels does not get a different
+    // week; the screen and the chain both go on counting from where the run began.
+    const index = Math.floor((now - dayStart(run, 0)) / DAY_MS)
     if (index >= 0 && index < run.shells * DAYS_PER_SHELL) day = index
     for (let d = 0; d < run.shells * DAYS_PER_SHELL; d++) {
-      // The chain's own clock, not the screen's: a day is missed when its window shuts, and the
-      // window is the program's.
-      const starts = shellStart(run.firstShell) + d * DAY_MS
+      const starts = dayStart(run, d)
       if (now >= starts && now < starts + RECORD_LATE_MS) open.push(d)
       if ((run.days >> BigInt(d)) & 1n) {
         done++

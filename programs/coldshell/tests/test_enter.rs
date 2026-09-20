@@ -72,7 +72,7 @@ fn nothing_can_be_recorded_until_the_run_starts() {
     enter(&mut env, &user, 1, 10 * USDC).unwrap();
 
     let err = record(&mut env, &user, 0).unwrap_err();
-    assert!(err.contains("Custom(6003)"), "{err}");
+    assert!(err.contains("Custom(6004)"), "{err}");
 }
 
 #[test]
@@ -135,4 +135,32 @@ fn a_run_paid_for_before_the_first_shell_starts_at_it() {
     enter(&mut env, &user, 1, 10 * USDC).unwrap();
     assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, 0);
     let _: Pubkey = run_pda(&user.pubkey());
+}
+
+/// A run keeps its days where the person keeps theirs. Two wallets entering at the same instant
+/// from opposite sides of the world get different weeks, and neither is wrong.
+#[test]
+fn a_run_keeps_its_own_midnight() {
+    // Monday 02:00 UTC: eleven in the morning in Seoul, ten the evening before in New York.
+    let mut env = setup(shell_start(9) + 2 * 60 * 60);
+    let payer = env.payer.insecure_clone();
+
+    for (name, offset, expected) in [("seoul", 9 * 60i16, 10u32), ("new york", -4 * 60, 9)] {
+        let user = new_user(&mut env.svm, 50 * USDC);
+        let ix = enter_ix_at(&user.pubkey(), &payer.pubkey(), 1, 10 * USDC, offset);
+        send(&mut env.svm, ix, &[&payer, &user]).unwrap();
+        let run = run_state(&env.svm, &user.pubkey());
+        assert_eq!(run.first_shell, expected, "{name}");
+        assert_eq!(run.utc_offset, offset, "{name}");
+    }
+}
+
+#[test]
+fn a_place_that_is_not_a_place_is_refused() {
+    let mut env = setup(shell_start(9) + 60);
+    let payer = env.payer.insecure_clone();
+    let user = new_user(&mut env.svm, 50 * USDC);
+    let ix = enter_ix_at(&user.pubkey(), &payer.pubkey(), 1, 10 * USDC, 20 * 60);
+    let err = send(&mut env.svm, ix, &[&payer, &user]).unwrap_err();
+    assert!(err.contains("Custom(6002)"), "{err}");
 }

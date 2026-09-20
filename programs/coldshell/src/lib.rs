@@ -20,8 +20,8 @@ declare_id!("GLt8XkwvvViMEy5x9xXRMXMdi6Lq96bT2xknRbqottud");
 pub mod coldshell {
     use super::*;
 
-    pub fn enter(ctx: Context<Enter>, shells: u8, stake: u64) -> Result<()> {
-        instructions::enter::handle_enter(ctx, shells, stake)
+    pub fn enter(ctx: Context<Enter>, shells: u8, stake: u64, utc_offset: i16) -> Result<()> {
+        instructions::enter::handle_enter(ctx, shells, stake, utc_offset)
     }
 
     pub fn record_day(ctx: Context<RecordDay>, day: u16, hash: [u8; 32]) -> Result<()> {

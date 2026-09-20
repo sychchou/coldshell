@@ -34,7 +34,7 @@ fn the_early_edge() {
 
     set_time(&mut env.svm, opens - 1);
     let err = record(&mut env, &user, 4).unwrap_err();
-    assert!(err.contains("Custom(6003)"), "{err}");
+    assert!(err.contains("Custom(6004)"), "{err}");
 
     set_time(&mut env.svm, opens);
     record(&mut env, &user, 4).unwrap();
@@ -47,7 +47,7 @@ fn the_late_edge() {
 
     set_time(&mut env.svm, closes + 1);
     let err = record(&mut env, &user, 2).unwrap_err();
-    assert!(err.contains("Custom(6004)"), "{err}");
+    assert!(err.contains("Custom(6005)"), "{err}");
 
     set_time(&mut env.svm, closes);
     record(&mut env, &user, 2).unwrap();
@@ -74,7 +74,7 @@ fn a_second_minute_still_has_to_be_in_time() {
     record_days(&mut env, &user, FIRST, &[1]);
     set_time(&mut env.svm, day_start(FIRST, 1) + RECORD_LATE_SECONDS + 1);
     let err = record(&mut env, &user, 1).unwrap_err();
-    assert!(err.contains("Custom(6004)"), "{err}");
+    assert!(err.contains("Custom(6005)"), "{err}");
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn a_day_past_the_end_of_the_run_is_refused() {
     let (mut env, user) = a_run(2);
     set_time(&mut env.svm, day_start(FIRST, 14) + 1);
     let err = record(&mut env, &user, 14).unwrap_err();
-    assert!(err.contains("Custom(6002)"), "{err}");
+    assert!(err.contains("Custom(6003)"), "{err}");
 }
 
 #[test]

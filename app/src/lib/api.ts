@@ -22,8 +22,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return json as T
 }
 
+/**
+ * `utcOffset` is where this browser keeps its days, in minutes east of UTC. The chain has one
+ * clock and no way to learn anybody's, so the run is told once and carries it from then on.
+ */
 export const enterTx = (wallet: string, shells: number, stake: number) =>
-  post<Prepared & { firstShell: number }>('/api/tx/enter', { wallet, shells, stake })
+  post<Prepared & { firstShell: number }>('/api/tx/enter', {
+    wallet,
+    shells,
+    stake,
+    utcOffset: -new Date().getTimezoneOffset(),
+  })
 
 export const recordDayTx = (wallet: string, day: number, sha256: string) =>
   post<Prepared & { shell: number }>('/api/tx/record-day', { wallet, day, sha256 })

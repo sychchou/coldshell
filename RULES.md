@@ -14,8 +14,13 @@ taken from one. Finishing returns exactly what you staked — not a cent more.
 
 ## A shell is a calendar week
 
-A shell runs Monday 00:00 to Sunday 23:59, UTC. Shells are numbered globally: everybody in shell
-#37 is in the same week, whether it is their first or their fifth.
+A shell runs Monday 00:00 to Sunday 23:59 — **your** Monday, where you are. Your run is told
+where you keep your days when you place the stake, and it counts from there afterwards, so
+travelling does not move your week.
+
+Shells are numbered from zero, and the number is an index rather than a cohort: two people in
+different places are in shell #3 a few hours apart, and nothing here minds. There is no pool and
+nobody's refund depends on anybody else's week.
 
 **You cannot join a week already under way.** Pay any time up to Sunday midnight and your run
 starts the following Monday — at most seven days of waiting.
@@ -29,8 +34,8 @@ starts the following Monday — at most seven days of waiting.
 - **One run per wallet at a time**, and a week off between runs.
 
   That is not a rule invented to be strict — it is what the clock does. A run's last week
-  settles on the Tuesday after it ends, which is the first moment you can collect it and close
-  it; by then the next week is already under way and cannot be joined. So the soonest a second
+  settles on the Monday morning after it ends, which is the first moment you can collect it and
+  close it; by then that week is already under way and cannot be joined. So the soonest a second
   run can start is the Monday after that.
 
   A week between commitments is a good thing to have. If that stops being true, this is the
@@ -41,9 +46,9 @@ starts the following Monday — at most seven days of waiting.
 A day is one recording of **at least one minute**. There is no maximum you must reach and no
 subject you must cover.
 
-A day may be recorded **from 14 hours before it starts until 48 hours after**. The 14 hours are
-because the site counts your own local day and the chain only knows UTC. The 48 are a deliberate
-day of grace: one bad evening should not cost a week.
+A day may be recorded **from an hour before it starts until 30 hours after**. The hour is for
+clocks that disagree by a little. The six hours past the day itself are grace: one bad evening
+should not cost a week, and finishing at two in the morning is finishing.
 
 A day may hold **up to five minutes-worth of recordings**. One is enough to keep the day; the
 rest are for the film.
@@ -58,8 +63,8 @@ cheater, which is why verification can be left out entirely.
 
 Each shell settles on its own. A missed day in week three costs week three and nothing else.
 
-A week settles **one day after it ends** — Tuesday 00:00 UTC — because Sunday's recording is
-still allowed through Monday. From then:
+A week settles when its last day stops being recordable — **Monday at six in the morning**,
+yours. From then:
 
 - **Every day recorded** → the week's share is yours to claim.
 - **Any day missing** → the week's share can be collected by the platform.

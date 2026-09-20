@@ -50,22 +50,30 @@ pub struct Enter<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_enter(ctx: Context<Enter>, shells: u8, stake: u64) -> Result<()> {
+/// `utc_offset` is where the participant keeps their days, in minutes east of UTC. The chain has
+/// one clock and no way to learn anybody's, so it is told once and never again — a run that could
+/// move its own midnight could dodge a day it had already missed.
+pub fn handle_enter(ctx: Context<Enter>, shells: u8, stake: u64, utc_offset: i16) -> Result<()> {
     require!(shells >= 1 && shells <= MAX_SHELLS, ErrorCode::InvalidShells);
     require!(stake >= MIN_STAKE && stake <= MAX_STAKE, ErrorCode::InvalidStake);
+    require!(
+        (MIN_UTC_OFFSET..=MAX_UTC_OFFSET).contains(&utc_offset),
+        ErrorCode::InvalidOffset
+    );
 
     let now = Clock::get()?.unix_timestamp;
 
     // The chain works out which week the run starts in; the caller does not get to nominate one.
     ctx.accounts.run.set_inner(Run {
         user: ctx.accounts.user.key(),
-        first_shell: starting_shell(now)?,
+        first_shell: starting_shell(now, utc_offset)?,
         shells,
         stake,
         days: 0,
         claimed: 0,
         swept: 0,
         started_at: now,
+        utc_offset,
         bump: ctx.bumps.run,
     });
 

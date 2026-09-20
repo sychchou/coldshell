@@ -463,6 +463,10 @@ export type Coldshell = {
         {
           "name": "stake",
           "type": "u64"
+        },
+        {
+          "name": "utcOffset",
+          "type": "i16"
         }
       ]
     },
@@ -763,66 +767,71 @@ export type Coldshell = {
     },
     {
       "code": 6002,
+      "name": "invalidOffset",
+      "msg": "That is not a timezone offset."
+    },
+    {
+      "code": 6003,
       "name": "invalidDay",
       "msg": "That day is not part of this run."
     },
     {
-      "code": 6003,
+      "code": 6004,
       "name": "dayNotStarted",
       "msg": "That day has not started yet."
     },
     {
-      "code": 6004,
+      "code": 6005,
       "name": "recordingClosed",
       "msg": "That day can no longer be recorded."
     },
     {
-      "code": 6005,
+      "code": 6006,
       "name": "invalidShell",
       "msg": "That shell is not part of this run."
     },
     {
-      "code": 6006,
+      "code": 6007,
       "name": "shellNotOver",
       "msg": "That shell is still running."
     },
     {
-      "code": 6007,
+      "code": 6008,
       "name": "weekIncomplete",
       "msg": "A day of that shell is missing."
     },
     {
-      "code": 6008,
+      "code": 6009,
       "name": "alreadyClaimed",
       "msg": "That shell has already been claimed."
     },
     {
-      "code": 6009,
+      "code": 6010,
       "name": "alreadySwept",
       "msg": "That shell has already been swept."
     },
     {
-      "code": 6010,
+      "code": 6011,
       "name": "claimWindowClosed",
       "msg": "The four weeks to claim that shell have passed."
     },
     {
-      "code": 6011,
+      "code": 6012,
       "name": "claimsPending",
       "msg": "That shell was finished and can still be claimed."
     },
     {
-      "code": 6012,
+      "code": 6013,
       "name": "shellsPending",
       "msg": "Every shell has to be settled before the run can be closed."
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "unauthorized",
       "msg": "Only the participant or the treasury can do that."
     },
     {
-      "code": 6014,
+      "code": 6015,
       "name": "mathOverflow",
       "msg": "Arithmetic overflowed."
     }
@@ -929,6 +938,17 @@ export type Coldshell = {
             "type": "i64"
           },
           {
+            "name": "utcOffset",
+            "docs": [
+              "Where this run keeps its days, in minutes east of UTC.",
+              "",
+              "Said once, at the start, and never again — otherwise a day could be dodged by moving the",
+              "clock after missing it. Nothing is gained by lying about it either: whatever it says, a",
+              "week is seven of that run's own days."
+            ],
+            "type": "i16"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -969,6 +989,11 @@ export type Coldshell = {
       "value": "200000000"
     },
     {
+      "name": "maxUtcOffset",
+      "type": "i16",
+      "value": "840"
+    },
+    {
       "name": "minStake",
       "docs": [
         "$10, in USDC base units. Below this nothing is really at stake."
@@ -977,14 +1002,30 @@ export type Coldshell = {
       "value": "10000000"
     },
     {
+      "name": "minUtcOffset",
+      "docs": [
+        "The furthest east and west a run may say it is, in minutes from UTC. Real zones run from",
+        "-12:00 to +14:00; nothing outside that is a place."
+      ],
+      "type": "i16",
+      "value": "-720"
+    },
+    {
       "name": "recordEarlySeconds",
+      "docs": [
+        "How far a day may be recorded either side of itself.",
+        "",
+        "A run keeps the offset it was opened with, so the day the program counts is the day the",
+        "participant is living — which means the window no longer has to cover the distance between",
+        "timezones. All of it is grace, and an hour of it is for clocks that disagree by a little."
+      ],
       "type": "i64",
-      "value": "50400"
+      "value": "3600"
     },
     {
       "name": "recordLateSeconds",
       "type": "i64",
-      "value": "172800"
+      "value": "108000"
     },
     {
       "name": "runSeed",

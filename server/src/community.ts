@@ -1,15 +1,16 @@
 /**
  * The one room. A line each, from whoever is inside a shell.
  *
- * It keeps a week and no more. A feed that keeps everything becomes an archive nobody asked to
- * be in, and this one is attached to wallet addresses — so the shell it belongs to is also how
- * long it lives. When the week turns, last week's room is gone.
+ * It keeps seven days and no more — a rolling week, not a calendar one. A feed that keeps
+ * everything becomes an archive nobody asked to be in, and this one is attached to wallet
+ * addresses. Shells start at different hours for different people now, so the room cannot be
+ * cut along them and does not need to be.
  */
 
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { PublicKey } from '@solana/web3.js'
-import { currentShell, fetchRun } from './chain.ts'
+import { fetchRun } from './chain.ts'
 import { config } from './config.ts'
 
 export class RoomError extends Error {}
@@ -29,46 +30,26 @@ const MAX_LINES = 500
 
 export const nickname = (wallet: string) => wallet.slice(0, 4)
 
-const roomPath = (shell: number) => resolve(join(config.community.dir, `${shell}.json`))
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
-async function load(shell: number): Promise<Line[]> {
+const roomPath = () => resolve(join(config.community.dir, 'room.json'))
+
+async function load(): Promise<Line[]> {
   try {
-    return JSON.parse(await readFile(roomPath(shell), 'utf8')) as Line[]
+    const lines = JSON.parse(await readFile(roomPath(), 'utf8')) as Line[]
+    return lines.filter((line) => line.at >= Date.now() - WEEK_MS)
   } catch {
     return []
   }
 }
 
-/**
- * Everything said in the shell running now. Older rooms are swept as they are noticed: there is
- * no scheduler here, and the only moment anybody cares whether last week is gone is a moment
- * somebody is already asking for this week.
- */
-export async function room(): Promise<Line[]> {
-  const shell = currentShell()
-  void sweepOldRooms(shell).catch(() => {})
-  return load(shell)
-}
-
-async function sweepOldRooms(keep: number) {
-  let names: string[]
-  try {
-    names = await readdir(resolve(config.community.dir))
-  } catch {
-    return
-  }
-  await Promise.all(
-    names
-      .filter((name) => name.endsWith('.json') && Number(name.slice(0, -5)) !== keep)
-      .map((name) => rm(resolve(join(config.community.dir, name)), { force: true })),
-  )
-}
+/** Everything said in the last seven days. Anything older is dropped as it is read past. */
+export const room = load
 
 async function append(line: Line) {
-  const shell = currentShell()
-  const lines = [...(await load(shell)), line].slice(-MAX_LINES)
+  const lines = [...(await load()), line].slice(-MAX_LINES)
   await mkdir(resolve(config.community.dir), { recursive: true })
-  await writeFile(roomPath(shell), JSON.stringify(lines))
+  await writeFile(roomPath(), JSON.stringify(lines))
   return line
 }
 
@@ -94,7 +75,7 @@ export async function announceClaim(wallet: string, shell: number) {
   if (offset < 0 || offset >= run.shells) throw new RoomError('that shell is not part of the run')
   if (!(run.claimed & (1 << offset))) throw new RoomError('the chain does not show that shell claimed')
 
-  const already = (await load(currentShell())).some(
+  const already = (await load()).some(
     (line) => line.wallet === wallet && line.claimed === shell,
   )
   if (already) return null

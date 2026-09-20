@@ -36,11 +36,10 @@ mod clock {
     /// first week is #1 has to answer what week #0 was.
     pub const SHELL_EPOCH_TS: i64 = 1_789_948_800;
     pub const DAY_SECONDS: i64 = 24 * 60 * 60;
-    /// A day may be recorded this long before it starts: the screen counts days in the
-    /// participant's local time, and the chain only knows UTC.
-    pub const RECORD_EARLY_SECONDS: i64 = 14 * 60 * 60;
-    /// And this long after, which is a deliberate day of grace for catching one up.
-    pub const RECORD_LATE_SECONDS: i64 = 48 * 60 * 60;
+    /// An hour, for clocks that disagree by a little.
+    pub const RECORD_EARLY_SECONDS: i64 = 60 * 60;
+    /// The day itself and six hours of grace.
+    pub const RECORD_LATE_SECONDS: i64 = 30 * 60 * 60;
     /// A finished week can be claimed for four weeks. After that the platform may sweep it.
     pub const CLAIM_WINDOW_SECONDS: i64 = 28 * 24 * 60 * 60;
 }
@@ -53,8 +52,8 @@ mod clock {
     /// Sunday 2026-09-20 01:00 UTC.
     pub const SHELL_EPOCH_TS: i64 = 1_789_866_000;
     pub const DAY_SECONDS: i64 = 10 * 60;
-    pub const RECORD_EARLY_SECONDS: i64 = 350;
-    pub const RECORD_LATE_SECONDS: i64 = 20 * 60;
+    pub const RECORD_EARLY_SECONDS: i64 = 25;
+    pub const RECORD_LATE_SECONDS: i64 = 750;
     pub const CLAIM_WINDOW_SECONDS: i64 = 4 * 60 * 60 + 40 * 60;
 }
 
@@ -70,6 +69,11 @@ pub const DAYS_PER_SHELL: u16 = 7;
 #[constant]
 pub const WEEK_SECONDS: i64 = DAY_SECONDS * DAYS_PER_SHELL as i64;
 
+/// How far a day may be recorded either side of itself.
+///
+/// A run keeps the offset it was opened with, so the day the program counts is the day the
+/// participant is living — which means the window no longer has to cover the distance between
+/// timezones. All of it is grace, and an hour of it is for clocks that disagree by a little.
 #[constant]
 pub const RECORD_EARLY_SECONDS: i64 = clock::RECORD_EARLY_SECONDS;
 
@@ -79,3 +83,9 @@ pub const RECORD_LATE_SECONDS: i64 = clock::RECORD_LATE_SECONDS;
 #[constant]
 pub const CLAIM_WINDOW_SECONDS: i64 = clock::CLAIM_WINDOW_SECONDS;
 
+/// The furthest east and west a run may say it is, in minutes from UTC. Real zones run from
+/// -12:00 to +14:00; nothing outside that is a place.
+#[constant]
+pub const MIN_UTC_OFFSET: i16 = -12 * 60;
+#[constant]
+pub const MAX_UTC_OFFSET: i16 = 14 * 60;

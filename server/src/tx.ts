@@ -80,6 +80,9 @@ export async function enter(body: Record<string, unknown>) {
   const user = wallet(body.wallet)
   const shells = whole(body.shells, 'weeks')
   const stake = BigInt(whole(body.stake, 'stake'))
+  // Where the participant keeps their days. The chain has one clock and no way to learn anybody's.
+  const utcOffset = whole(body.utcOffset ?? 0, 'timezone')
+  if (utcOffset < -12 * 60 || utcOffset > 14 * 60) refuse('that is not a timezone')
 
   if (shells < 1 || shells > MAX_SHELLS) refuse(`a run is 1 to ${MAX_SHELLS} weeks`)
   if (stake < BigInt(MIN_STAKE) || stake > BigInt(MAX_STAKE)) {
@@ -95,7 +98,10 @@ export async function enter(body: Record<string, unknown>) {
     refuse(`${short(user)} holds $${money(held)} — not enough for a $${money(stake)} stake`)
   }
 
-  return { ...(await prepare(enterIx(user, shells, stake))), firstShell: startingShell() }
+  return {
+    ...(await prepare(enterIx(user, shells, stake, utcOffset))),
+    firstShell: startingShell(nowSeconds(), utcOffset),
+  }
 }
 
 export async function recordDay(body: Record<string, unknown>) {
@@ -143,7 +149,7 @@ export async function claim(body: Record<string, unknown>) {
   if (run.swept & bit) refuse('that shell has already been swept')
 
   const now = nowSeconds()
-  const settles = shellSettles(shell)
+  const settles = shellSettles(shell, run.utcOffset)
   if (now < settles) refuse('that shell has not settled yet')
   if (!shellComplete(run, offset)) refuse('a day of that shell is missing')
   if (now >= settles + CLAIM_WINDOW_SECONDS) refuse('the window to claim that shell has closed')

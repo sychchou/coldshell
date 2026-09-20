@@ -43,10 +43,13 @@ once.
 
 ## The clock
 
-- A day may be recorded **from 14 hours before it starts to 48 hours after**. The 14 hours cover
-  the gap between the day you are living and the UTC the chain knows; the 48 are a day of grace,
-  because one bad evening should not cost a week.
-- A week **settles one day after it ends**, since Sunday's minute is still allowed through Monday.
+- A shell is **your** Monday to your Sunday. The run is told where you keep your days when you
+  place the stake, and counts from there — the chain has one clock and no way to learn yours.
+- A day may be recorded **from an hour before it starts to 30 hours after**: the hour is for
+  clocks that disagree by a little, and the six hours past the day are grace, because one bad
+  evening should not cost a week.
+- A week **settles on the Monday morning after it ends**, when its last day stops being
+  recordable.
 - A finished week can be claimed for **four weeks**. After that the platform may take it.
 - You cannot join a week already under way. Pay by Sunday midnight; your run starts Monday.
 
