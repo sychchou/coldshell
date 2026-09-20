@@ -226,6 +226,15 @@ below is not built or not settled. Keep it current — this is the memo's only m
   while the service is template-linked — then authorise Railway's GitHub App on the repository
   under the current account. Reconnecting the source alone changes nothing.
 - **A missed day has to read as missed.** Skip one on purpose and look at the calendar.
+- **Check the volume is big enough for ten.** A minute is about 12 MB, a day may hold five of
+  them, and a finished film is about 80 MB. Ten people for a week is around 1.7 GB if everybody
+  records once a day and 5.4 GB if everybody fills the day — against a 5 GB volume by default.
+  A full disk fails the clip upload, which is to say it takes somebody's day away, so this is
+  checked before the trial rather than during it.
+- **Open ten wallets' token accounts and fund them.** The faucet does the opening now; it used
+  to refuse, which would have stopped all ten on the first morning — the program does not open
+  one either, so there was no way through at all. Keep an eye on the staff wallet's balance
+  while doing it, because it is on screen for exactly that.
 
 ### Frozen until the trial ends (2026-10-05)
 

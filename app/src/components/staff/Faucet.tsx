@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { createTransferCheckedInstruction } from '@solana/spl-token'
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  createTransferCheckedInstruction,
+} from '@solana/spl-token'
 import { PublicKey, Transaction } from '@solana/web3.js'
 import { USDC_DECIMALS, USDC_MINT, explorerTxUrl } from '../../config'
 import { usdcAta } from '../../lib/program'
-import { short, usd } from './format'
+import { usd } from './format'
 
 /**
  * Handing test money to a tester.
@@ -13,6 +16,12 @@ import { short, usd } from './format'
  * comes from whichever wallet is connected here — its address is on screen so it can be topped
  * up, and its balance is on screen so the running out is seen before it happens rather than
  * after somebody has been told to go and register.
+ *
+ * It opens the recipient's token account when they have none, which every wallet made this
+ * morning does not. Refusing instead — which this did — left a new participant with no way
+ * forward at all: the program will not open one either, and the only account that could pay for
+ * it is this one. Opening an account is permissionless and idempotent, so doing it here costs
+ * the two thousandths of a SOL it is worth and cannot go wrong twice.
  */
 export function Faucet({
   balance,
@@ -25,7 +34,13 @@ export function Faucet({
   const { publicKey, sendTransaction } = useWallet()
   const [to, setTo] = useState('')
   const [amount, setAmount] = useState('10')
-  const [state, setState] = useState<{ busy?: boolean; signature?: string; error?: string }>({})
+  const [state, setState] = useState<{
+    busy?: boolean
+    signature?: string
+    /** Whether this also opened their token account, which is worth saying once. */
+    opened?: boolean
+    error?: string
+  }>({})
 
   const send = async () => {
     if (!publicKey) return setState({ error: 'connect the wallet holding the usdc' })
@@ -36,17 +51,21 @@ export function Faucet({
       if (units <= 0n) throw new Error('nothing to send')
 
       const theirs = usdcAta(recipient)
-      if (!(await connection.getAccountInfo(theirs))) {
-        throw new Error(`${short(recipient)} has no usdc account yet — it has to be created first`)
-      }
+      const opening = !(await connection.getAccountInfo(theirs))
 
-      const tx = new Transaction().add(
+      const tx = new Transaction()
+      if (opening) {
+        tx.add(
+          createAssociatedTokenAccountIdempotentInstruction(publicKey, theirs, recipient, USDC_MINT),
+        )
+      }
+      tx.add(
         createTransferCheckedInstruction(usdcAta(publicKey), USDC_MINT, theirs, publicKey, units, USDC_DECIMALS),
       )
       const signature = await sendTransaction(tx, connection)
       const latest = await connection.getLatestBlockhash()
       await connection.confirmTransaction({ signature, ...latest }, 'confirmed')
-      setState({ signature })
+      setState({ signature, opened: opening })
       setTo('')
       onSent()
     } catch (err) {
@@ -83,7 +102,7 @@ export function Faucet({
       {state.error && <p className="staff-error">{state.error}</p>}
       {state.signature && (
         <p className="dim">
-          sent ·{' '}
+          sent{state.opened && ', and their usdc account opened'} ·{' '}
           <a href={explorerTxUrl(state.signature)} target="_blank" rel="noreferrer">
             {state.signature.slice(0, 16)}…
           </a>
