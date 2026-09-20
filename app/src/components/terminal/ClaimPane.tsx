@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { Transaction } from '@solana/web3.js'
 import { USDC_DECIMALS, explorerTxUrl } from '../../config'
-import { announceClaim, claimTx, filmLink, sendPrepared, type FilmLink } from '../../lib/api'
+import { announceClaim, claimTx, filmLink, mailFilm, sendPrepared, type FilmLink } from '../../lib/api'
 import { claimDeadline, closeIx, share, shellSettles } from '../../lib/runs'
 import { explain } from '../../lib/send'
 import type { RunView } from '../../lib/useRun'
 import { useCommands, useScrollOutput } from './chips'
+import { Prompt } from './Prompt'
 import { mb } from '../../lib/recorder'
 
 const usd = (base: bigint) => `$${(Number(base) / 10 ** USDC_DECIMALS).toFixed(2)}`
@@ -99,6 +100,34 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
     }
   }
 
+  /**
+   * Posting it somewhere.
+   *
+   * The address is typed here and kept nowhere: the server sends the message and forgets, which
+   * is why this asks every time instead of remembering. What travels is a link rather than the
+   * film — eighty megabytes does not fit in a mailbox — and that link outlives the one on screen
+   * by a fortnight, because mail is read later by definition.
+   */
+  const [to, setTo] = useState('')
+  const [typing, setTyping] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [posted, setPosted] = useState<{ to: string; days: number } | null>(null)
+  const [postError, setPostError] = useState<string | null>(null)
+
+  const post = async () => {
+    if (!publicKey || !signMessage || !to.trim() || posting) return
+    setPosting(true)
+    setPostError(null)
+    try {
+      setPosted(await mailFilm(publicKey.toBase58(), signMessage, to.trim()))
+      setTyping(false)
+    } catch (err) {
+      setPostError(explain(err))
+    } finally {
+      setPosting(false)
+    }
+  }
+
   useCommands(
     {
       chips: [
@@ -131,13 +160,54 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
         ...(run && signMessage && !reel?.link
           ? [{ key: 'film', label: reel?.busy ? 'putting it together…' : 'film', onClick: makeFilm, disabled: reel?.busy }]
           : []),
+        // The film is here: save it, or send it somewhere. Typing an address takes the bar over,
+        // so that Enter never means two things at once.
+        ...(reel?.link && !typing
+          ? [
+              {
+                key: 'download',
+                label: 'download',
+                tone: 'yes' as const,
+                href: reel.link.url,
+                download: reel.link.name,
+              },
+            ]
+          : []),
+        ...(reel?.link?.mail && !typing
+          ? [{ key: 'mail', label: posted ? 'send it again' : 'mail it', onClick: () => { setPostError(null); setTyping(true) } }]
+          : []),
+        ...(typing
+          ? [
+              {
+                key: 'send',
+                label: posting ? 'sending…' : 'send',
+                tone: 'yes' as const,
+                onClick: post,
+                disabled: posting || !to.trim(),
+              },
+              { key: 'nevermind', label: 'never mind', tone: 'no' as const, onClick: () => setTyping(false) },
+            ]
+          : []),
       ],
     },
-    [waiting.join(), later, busy, publicKey, reel, closed, settled, Boolean(signMessage)],
+    [
+      waiting.join(),
+      later,
+      busy,
+      publicKey,
+      reel,
+      closed,
+      settled,
+      Boolean(signMessage),
+      typing,
+      posting,
+      to,
+      posted,
+    ],
     active,
   )
 
-  useScrollOutput([done.length, later, reel, error, closed])
+  useScrollOutput([done.length, later, reel, error, closed, typing, posted, postError])
 
   return (
     <>
@@ -212,6 +282,30 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
                 <span className="term-dim">· {mb(reel.link.bytes)}</span>
               </p>
               <p className="term-line term-dim">the link is good for half an hour.</p>
+
+              {typing && (
+                <Prompt
+                  label="mail to"
+                  hint="you@example.com"
+                  max={254}
+                  value={to}
+                  onChange={setTo}
+                  onDone={post}
+                  onCancel={() => setTyping(false)}
+                />
+              )}
+              {postError && <p className="term-line term-bad">{postError}</p>}
+              {posted && !typing && (
+                <>
+                  <p className="term-line">
+                    sent to <b>{posted.to}</b>.
+                  </p>
+                  <p className="term-line term-dim">
+                    the link in it lasts {posted.days} days. the address is not kept — sending it
+                    again asks for one again.
+                  </p>
+                </>
+              )}
             </>
           )}
         </div>

@@ -95,6 +95,9 @@ so the record is kept where we cannot edit it.**
   exact file is the one that was sealed.
 - At the end of a run they are joined, in order, into one film that you can download. A minute
   the chain never accepted is not in the film; it has no date of its own.
+- The film can also be posted to you. What travels is a link rather than the file — a week of
+  minutes will not fit in a mailbox — and the address is typed at the moment you send it and
+  kept nowhere, so asking again asks for it again.
 - You can burn any recording that never made it onto the chain.
 
 ## What can go wrong, and what happens

@@ -11,6 +11,8 @@ export type Chip = {
   onClick?: () => void
   /** External link; shown with an arrow so leaving the site is never a surprise. */
   href?: string
+  /** Saves `href` under this name instead of going anywhere. No arrow: nothing is left. */
+  download?: string
   disabled?: boolean
   /** 'yes' and 'no' answer a question the terminal just printed. */
   tone?: 'yes' | 'no'
@@ -107,12 +109,14 @@ export function ChipBar({ commands, onReset }: { commands: Commands; onReset: ()
               data-chip={chip.key}
               className="chip"
               href={chip.href}
-              target="_blank"
-              rel="noopener noreferrer"
+              download={chip.download}
+              target={chip.download ? undefined : '_blank'}
+              rel={chip.download ? undefined : 'noopener noreferrer'}
               data-tone={chip.tone}
               onClick={chip.onClick}
             >
-              {chip.label} ↗
+              {chip.label}
+              {chip.download ? '' : ' ↗'}
             </a>
           ) : (
             <button

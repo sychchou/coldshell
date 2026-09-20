@@ -61,6 +61,8 @@ export type FilmLink = {
   days: number
   from: number
   to: number
+  /** Whether this server can post it. Offering to mail a film it cannot send would be a lie. */
+  mail: boolean
 }
 
 export type Kept = {
@@ -141,6 +143,16 @@ export const burnClip = (
  */
 export const filmLink = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
   signed<FilmLink>('give me my film', wallet, signMessage, '/api/film')
+
+/**
+ * Posts the film to an address the server does not keep. The link in the message lives far
+ * longer than the one on screen, because a mailbox is opened tomorrow rather than now.
+ */
+export const mailFilm = (
+  wallet: string,
+  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
+  to: string,
+) => signed<{ to: string; days: number }>('mail me my film', wallet, signMessage, '/api/film/mail', { to })
 
 export function sendPrepared(
   connection: Connection,

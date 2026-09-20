@@ -13,9 +13,13 @@ COPY server/src ./src
 
 ENV NODE_ENV=production
 # Recordings are the product, and a container's own disk does not survive it. Mount a volume at
-# /data or every clip is lost on the next deploy.
+# /data or every clip is lost on the next deploy — along with the notes people left themselves,
+# the week's room, and any download link somebody was posted and has not opened yet.
 ENV CLIP_DIR=/data/clips
 ENV FILM_DIR=/data/films
+ENV MEMO_DIR=/data/memo
+ENV COMMUNITY_DIR=/data/community
+ENV LINK_DIR=/data/links
 EXPOSE 8787
 
 CMD ["node", "src/index.ts"]
