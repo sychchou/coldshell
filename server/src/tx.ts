@@ -42,6 +42,9 @@ import { config } from './config.ts'
 
 export class TxError extends Error {}
 
+const money = (base: bigint) => (Number(base) / 1e6).toFixed(2)
+const short = (key: PublicKey) => `${key.toBase58().slice(0, 4)}…${key.toBase58().slice(-4)}`
+
 // The explicit type is what lets TypeScript treat a refusal as the end of the road, so the
 // checks below read as a list rather than a ladder of else branches.
 const refuse: (message: string) => never = (message) => {
@@ -84,7 +87,13 @@ export async function enter(body: Record<string, unknown>) {
   }
   // One run per wallet: a second `enter` fails on chain, and we would pay for the failure.
   if (await connection.getAccountInfo(runPda(user))) refuse('that wallet already has a run open')
-  if ((await usdcBalance(user)) < stake) refuse('not enough usdc in that wallet')
+
+  // Saying how much is there turns a dead end into a diagnosis: the usual cause is a different
+  // wallet being connected than the one somebody funded, and a number makes that obvious.
+  const held = await usdcBalance(user)
+  if (held < stake) {
+    refuse(`${short(user)} holds $${money(held)} — not enough for a $${money(stake)} stake`)
+  }
 
   return { ...(await prepare(enterIx(user, shells, stake))), firstShell: startingShell() }
 }
