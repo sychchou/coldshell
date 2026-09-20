@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS, explorerTxUrl } from '../../config'
-import { filmLink, noteSignature, recordDayTx, sendPrepared, type FilmLink } from '../../lib/api'
+import {
+  filmLink,
+  keepMemo,
+  myMemo,
+  noteSignature,
+  recordDayTx,
+  sendPrepared,
+  type FilmLink,
+  type Memo,
+} from '../../lib/api'
 import type { DayMark, RunView } from '../../lib/useRun'
 import { QUESTIONS, questionOfTheDay } from '../../questions'
 import { ClipRecorder, CONSTRAINTS, MAX_MS, MIN_MS, clock, mb, pickMimeType, type Recording } from '../../lib/recorder'
@@ -10,6 +19,7 @@ import { explain } from '../../lib/send'
 import { shellStart } from '../../lib/runs'
 import { TEST_MODE, today } from '../../lib/shell'
 import { useCommands, useScrollOutput } from './chips'
+import { Prompt } from './Prompt'
 import { bar } from './format'
 
 type Stage =
@@ -30,10 +40,7 @@ type Stage =
   | { kind: 'error'; message: string }
 
 /** Each command's output, kept in the order it was run. */
-type Entry =
-  | { id: number; command: 'camera' }
-  | { id: number; command: 'example'; question: number }
-  | { id: number; command: 'memo' }
+type Entry = { id: number; command: 'camera' } | { id: number; command: 'example'; question: number }
 
 function reason(err: unknown) {
   const name = err instanceof Error ? err.name : ''
@@ -160,6 +167,32 @@ export function RecordPane({
   }
 
   const [reel, setReel] = useState<{ link?: FilmLink; error?: string; busy?: boolean } | null>(null)
+  const [note, setNote] = useState<{ memo?: Memo | null; draft?: string; error?: string; busy?: boolean } | null>(null)
+
+  /**
+   * The one note this wallet keeps. Not a diary — the diary is the minutes, and nobody reads
+   * those. This is the line you leave yourself about why you started, so that on the fourth
+   * evening there is something on the screen written by somebody who meant it.
+   */
+  const openMemo = async () => {
+    if (!publicKey || !signMessage) return
+    setNote({ busy: true })
+    try {
+      setNote({ memo: (await myMemo(publicKey.toBase58(), signMessage)).memo })
+    } catch (err) {
+      setNote({ error: explain(err) })
+    }
+  }
+
+  const saveMemo = async (said: string) => {
+    if (!publicKey || !signMessage) return
+    setNote((at) => ({ ...at, busy: true }))
+    try {
+      setNote({ memo: (await keepMemo(publicKey.toBase58(), signMessage, said)).memo })
+    } catch (err) {
+      setNote((at) => ({ ...at, busy: false, draft: said, error: explain(err) }))
+    }
+  }
 
   /** An earlier day with nothing in it and time left on it: the one worth asking about. */
   const behind = empty.find((d) => d !== day)
@@ -334,8 +367,23 @@ export function RecordPane({
   useCommands(
     {
       chips: [
-        // A place to leave yourself a line. Nothing writes it down yet, and it says so.
-        { key: 'memo', label: 'memo', onClick: () => setLog((all) => [...all, { id: nextId.current++, command: 'memo' }]) },
+        ...(signMessage && note?.draft === undefined
+          ? [{ key: 'memo', label: note?.busy ? 'reading…' : 'memo', onClick: openMemo, disabled: note?.busy }]
+          : []),
+        ...(note?.draft !== undefined
+          ? [
+              {
+                key: 'keep',
+                label: note.busy ? 'keeping…' : 'keep',
+                tone: 'yes' as const,
+                onClick: () => void saveMemo(note.draft!),
+                disabled: note.busy,
+              },
+            ]
+          : []),
+        ...(note?.memo !== undefined && note.draft === undefined
+          ? [{ key: 'edit', label: note.memo ? 'edit' : 'write one', onClick: () => setNote({ ...note, draft: note.memo?.said ?? '' }) }]
+          : []),
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
@@ -346,11 +394,11 @@ export function RecordPane({
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), empty.join(), reel, Boolean(signMessage), marks.join()],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, openDays.join(), empty.join(), reel, note, Boolean(signMessage), marks.join()],
     active,
   )
 
-  useScrollOutput([stage.kind, log.length, reel])
+  useScrollOutput([stage.kind, log.length, reel, note])
 
   // The camera block that owns the stream: the last one printed.
   const liveCamera = log.reduce((id, entry) => (entry.command === 'camera' ? entry.id : id), -1)
@@ -412,15 +460,33 @@ export function RecordPane({
         </div>
       )}
 
-      {log.map((entry) =>
-        entry.command === 'memo' ? (
-          <div className="term-entry" key={entry.id}>
-            <p className="term-prompt">memo</p>
+      {note && (
+        <div className="term-entry">
+          <p className="term-prompt">memo</p>
+          {note.busy && note.draft === undefined && <p className="term-line term-dim">reading…</p>}
+          {note.error && <p className="term-line term-bad">{note.error}</p>}
+          {note.draft === undefined && note.memo && <p className="term-line">{note.memo.said}</p>}
+          {note.draft === undefined && note.memo === null && (
             <p className="term-line term-dim">
-              a line to yourself, kept where the minute is. not built yet.
+              nothing here yet. one line to yourself, for the evening you would rather not.
             </p>
-          </div>
-        ) : entry.command === 'example' ? (
+          )}
+          {note.draft !== undefined && (
+            <Prompt
+              label="memo"
+              hint="why you started"
+              max={280}
+              value={note.draft}
+              onChange={(draft) => setNote({ ...note, draft })}
+              onDone={() => void saveMemo(note.draft!)}
+              onCancel={() => setNote({ ...note, draft: undefined })}
+            />
+          )}
+        </div>
+      )}
+
+      {log.map((entry) =>
+        entry.command === 'example' ? (
           <div className="term-entry" key={entry.id}>
             <p className="term-prompt">example</p>
             <p className="term-line">{QUESTIONS[entry.question]}</p>

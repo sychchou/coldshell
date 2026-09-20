@@ -283,11 +283,17 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
         </div>
       )}
       {run.run && paid.kind === 'idle' && (
-        <p className="term-line term-dim">
-          this wallet is already in shell {run.run.firstShell}
-          {run.run.shells > 1 && ` – ${run.run.firstShell + run.run.shells - 1}`}. a wallet holds
-          one run at a time, so the next one can be placed once that has been collected and closed.
-        </p>
+        <>
+          <p className="term-line term-dim">
+            this wallet is already in shell {run.run.firstShell}
+            {run.run.shells > 1 && ` – ${run.run.firstShell + run.run.shells - 1}`}.
+          </p>
+          <p className="term-line term-dim">
+            one run at a time, and a week off between them: the last week settles on the tuesday
+            after it ends, and by then the next one has started. so the soonest another run can
+            begin is the monday after that.
+          </p>
+        </>
       )}
       {ready && !publicKey && <p className="term-line term-bad">connect a wallet to pay.</p>}
     </>

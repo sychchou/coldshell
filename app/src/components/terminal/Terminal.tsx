@@ -51,7 +51,7 @@ export function Terminal({ onTint }: { onTint: (colour: string) => void }) {
 
   // A finished week opens its own tab, once, the way an update notice does. After that it is
   // just a tab: nobody should have to dismiss the same good news twice.
-  const owed = run.claimable.length > 0
+  const owed = run.claimable.length > 0 || run.finished
   const announced = useRef(false)
   useEffect(() => {
     if (owed && !announced.current) {

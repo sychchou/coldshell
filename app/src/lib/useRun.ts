@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { DAYS_PER_SHELL, DAY_MS, RECORD_LATE_MS } from '../config'
-import { fetchRun, shellStart, shellState, type Run, type ShellState } from './runs'
+import { closable, fetchRun, shellStart, shellState, type Run, type ShellState } from './runs'
 import { today } from './shell'
 
 /**
@@ -30,6 +30,8 @@ export type RunView = {
   empty: number[]
   /** Shells that can be collected right now, newest last. */
   claimable: number[]
+  /** Everything is settled: the run can be put away and the wallet freed for the next. */
+  finished: boolean
   state: (offset: number) => ShellState
 }
 
@@ -110,6 +112,7 @@ export function useRun(): RunView {
     open: open,
     empty: open.filter((i) => marks[i] !== 'done'),
     claimable,
+    finished: run ? closable(run, now) : false,
     state: (offset: number) => shellState(run!, offset, now),
   }
 }

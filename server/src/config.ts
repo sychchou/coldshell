@@ -21,6 +21,10 @@ export const config = {
     /** A download link is good for this long, which is long enough to click it. */
     ttlMs: Number(process.env.FILM_TTL_MS ?? 30 * 60_000),
   },
+  memo: {
+    /** One file per wallet, holding the one note it is allowed. */
+    dir: process.env.MEMO_DIR ?? 'data/memo',
+  },
   community: {
     /** One file per shell; the week is both the room and how long it lasts. */
     dir: process.env.COMMUNITY_DIR ?? 'data/community',

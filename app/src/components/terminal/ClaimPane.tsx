@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { Transaction } from '@solana/web3.js'
 import { USDC_DECIMALS, explorerTxUrl } from '../../config'
-import { claimTx, filmLink, sendPrepared, type FilmLink } from '../../lib/api'
-import { claimDeadline, share, shellSettles } from '../../lib/runs'
+import { announceClaim, claimTx, filmLink, sendPrepared, type FilmLink } from '../../lib/api'
+import { claimDeadline, closeIx, share, shellSettles } from '../../lib/runs'
 import { explain } from '../../lib/send'
 import type { RunView } from '../../lib/useRun'
 import { useCommands, useScrollOutput } from './chips'
@@ -28,8 +29,8 @@ const runtime = (seconds: number) =>
  */
 export function ClaimPane({ active, run: view }: { active: boolean; run: RunView }) {
   const { connection } = useConnection()
-  const { publicKey, signMessage, signTransaction } = useWallet()
-  const { run, now, claimable } = view
+  const { publicKey, sendTransaction, signMessage, signTransaction } = useWallet()
+  const { run, now, claimable, finished: settled } = view
 
   const [done, setDone] = useState<{ shell: number; signature: string }[]>([])
   const [busy, setBusy] = useState<number | null>(null)
@@ -53,6 +54,8 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
       try {
         const signature = await sendPrepared(connection, signTransaction, await claimTx(publicKey.toBase58(), shell))
         setDone((all) => [...all, { shell, signature }])
+        // The room says so on its own; it asks the chain whether it really happened.
+        await announceClaim(publicKey.toBase58(), shell).catch(() => {})
       } catch (err) {
         setError(explain(err))
         break
@@ -60,6 +63,30 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
     }
     setBusy(null)
     await view.refresh()
+  }
+
+  const [closed, setClosed] = useState<string | null>(null)
+
+  /**
+   * Puts the run away. A wallet holds one run at a time, so this is also how the next one starts
+   * — and the rent that was put up to open it comes back at the same moment.
+   */
+  const putAway = async () => {
+    if (!publicKey || !signTransaction || !run) return
+    setBusy(-1)
+    setError(null)
+    try {
+      const tx = new Transaction().add(closeIx(publicKey, publicKey))
+      const signature = await sendTransaction(tx, connection)
+      const latest = await connection.getLatestBlockhash()
+      await connection.confirmTransaction({ signature, ...latest }, 'confirmed')
+      setClosed(signature)
+      await view.refresh()
+    } catch (err) {
+      setError(explain(err))
+    } finally {
+      setBusy(null)
+    }
   }
 
   const makeFilm = async () => {
@@ -90,16 +117,27 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
         ...(later && waiting.length
           ? [{ key: 'again', label: `take ${usd(owed)}`, tone: 'yes' as const, onClick: () => setLater(false) }]
           : []),
+        ...(settled && !waiting.length && run && !closed
+          ? [
+              {
+                key: 'close',
+                label: busy === -1 ? 'closing…' : 'close the run',
+                tone: 'yes' as const,
+                onClick: putAway,
+                disabled: busy !== null,
+              },
+            ]
+          : []),
         ...(run && signMessage && !reel?.link
           ? [{ key: 'film', label: reel?.busy ? 'putting it together…' : 'film', onClick: makeFilm, disabled: reel?.busy }]
           : []),
       ],
     },
-    [waiting.join(), later, busy, publicKey, reel, Boolean(signMessage)],
+    [waiting.join(), later, busy, publicKey, reel, closed, settled, Boolean(signMessage)],
     active,
   )
 
-  useScrollOutput([done.length, later, reel, error])
+  useScrollOutput([done.length, later, reel, error, closed])
 
   return (
     <>
@@ -139,6 +177,20 @@ export function ClaimPane({ active, run: view }: { active: boolean; run: RunView
           </a>
         </p>
       ))}
+      {settled && !waiting.length && !closed && (
+        <p className="term-line">
+          every week of this run is settled. closing it hands the rent back and frees the wallet
+          for the next run.
+        </p>
+      )}
+      {closed && (
+        <p className="term-line">
+          closed.{' '}
+          <a className="term-dim" href={explorerTxUrl(closed)} target="_blank" rel="noreferrer">
+            {closed.slice(0, 16)}…
+          </a>
+        </p>
+      )}
       {error && <p className="term-line term-bad">{error}</p>}
 
       {reel && (

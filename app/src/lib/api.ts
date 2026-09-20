@@ -107,6 +107,18 @@ export const sayInRoom = (wallet: string, said: string) =>
 export const announceClaim = (wallet: string, claimed: number) =>
   post<{ line: Line | null }>('/api/community', { wallet, claimed })
 
+export type Memo = { said: string; at: number }
+
+/** Reading and writing the one note: no `said` reads it, a `said` replaces it. */
+export const myMemo = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
+  signed<{ memo: Memo | null }>('my memo', wallet, signMessage, '/api/memo')
+
+export const keepMemo = (
+  wallet: string,
+  signMessage: (m: Uint8Array) => Promise<Uint8Array>,
+  said: string,
+) => signed<{ memo: Memo }>('my memo', wallet, signMessage, '/api/memo', { said })
+
 export const keptClips = (wallet: string, signMessage: (m: Uint8Array) => Promise<Uint8Array>) =>
   signed<{ clips: Kept[] }>('show me my clips', wallet, signMessage, '/api/clips')
 

@@ -26,7 +26,15 @@ starts the following Monday — at most seven days of waiting.
 - **1 to 10 shells** in a run.
 - The stake is split evenly across the shells of the run. Division leaves a few millionths of a
   dollar over; the last shell carries them, so the shares add up to exactly what you staked.
-- One run per wallet at a time. Closing a finished run frees the wallet for the next.
+- **One run per wallet at a time**, and a week off between runs.
+
+  That is not a rule invented to be strict — it is what the clock does. A run's last week
+  settles on the Tuesday after it ends, which is the first moment you can collect it and close
+  it; by then the next week is already under way and cannot be joined. So the soonest a second
+  run can start is the Monday after that.
+
+  A week between commitments is a good thing to have. If that stops being true, this is the
+  first thing that will change.
 
 ## A day
 
