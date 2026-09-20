@@ -6,7 +6,9 @@ cd "$(dirname "$0")/.."
 # Prefer the Helius endpoint if HELIUS_API_KEY is in server/.env
 if [ -f server/.env ]; then
   # shellcheck disable=SC1090
-  source <(grep -E '^HELIUS_API_KEY=' server/.env || true)
+  # A stray space after the `=` makes a url with %20 in the key, and a 401 that says nothing
+  # about where it came from.
+  source <(grep -E '^HELIUS_API_KEY=' server/.env | sed -E 's/^([A-Z_]+)=[[:space:]]*(.*[^[:space:]])[[:space:]]*$/\1=\2/' || true)
 fi
 RPC="${DEVNET_RPC:-}"
 if [ -z "$RPC" ] && [ -n "${HELIUS_API_KEY:-}" ]; then
@@ -17,7 +19,19 @@ RPC="${RPC:-https://api.devnet.solana.com}"
 WALLET="${SOLANA_WALLET:-$HOME/.config/solana/id.json}"
 BALANCE=$(solana balance -u "$RPC" -k "$WALLET" | awk '{print $1}')
 echo "deployer $(solana address -k "$WALLET") has $BALANCE SOL on devnet"
-awk -v b="$BALANCE" 'BEGIN { if (b < 4.5) { print "need ~4.5 SOL to deploy (2.2 stays locked, the rest comes back)"; exit 1 } }'
+
+# A first deploy has to buy the program account outright. An upgrade only rents a buffer the
+# same size, and gets it back when the swap lands — so the two need very different balances and
+# one floor for both would either block upgrades or wave through a deploy that cannot finish.
+PROGRAM=$(python3 -c "import json;print(json.load(open('target/idl/coldshell.json'))['address'])")
+if solana program show "$PROGRAM" -u "$RPC" >/dev/null 2>&1; then
+  FLOOR=2.5
+  echo "upgrading $PROGRAM"
+else
+  FLOOR=4.5
+  echo "first deploy of $PROGRAM"
+fi
+awk -v b="$BALANCE" -v f="$FLOOR" 'BEGIN { if (b < f) { printf "need ~%s SOL for this one\n", f; exit 1 } }'
 
 # COLDSHELL_FEATURES=short-clock shrinks a day to ten minutes so a whole run fits in an hour.
 # The feature reaches the IDL as well as the binary, which is what keeps the screen honest —

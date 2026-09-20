@@ -997,7 +997,7 @@ export type Coldshell = {
     {
       "name": "shellEpochTs",
       "type": "i64",
-      "value": "1789344000"
+      "value": "1789948800"
     },
     {
       "name": "treasury",
