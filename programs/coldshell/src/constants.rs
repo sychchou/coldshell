@@ -77,8 +77,3 @@ pub const RECORD_LATE_SECONDS: i64 = clock::RECORD_LATE_SECONDS;
 #[constant]
 pub const CLAIM_WINDOW_SECONDS: i64 = clock::CLAIM_WINDOW_SECONDS;
 
-/// How long after a shell begins you can still join it. Shells always start on a Monday, so a
-/// run paid for midweek waits for the next one; Monday itself still counts, which is where the
-/// "at most six days of waiting" comes from.
-#[constant]
-pub const START_GRACE_SECONDS: i64 = DAY_SECONDS;

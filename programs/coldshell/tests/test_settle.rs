@@ -7,7 +7,8 @@ use {
 const FIRST: u32 = 3;
 
 fn a_run(shells: u8, stake: u64) -> (Env, Keypair) {
-    let mut env = setup(shell_start(FIRST) + 60);
+    // A run always starts in the next shell, so the stake is placed in the one before.
+    let mut env = setup(shell_start(FIRST - 1) + 60);
     let user = new_user(&mut env.svm, 500 * USDC);
     enter(&mut env, &user, shells, stake).unwrap();
     (env, user)
@@ -122,7 +123,7 @@ fn closing_returns_the_rent_and_frees_the_wallet_for_another_run() {
     // And the wallet can start again at the same address.
     set_time(&mut env.svm, shell_start(FIRST + 5) + 60);
     enter(&mut env, &user, 1, 10 * USDC).unwrap();
-    assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, FIRST + 5);
+    assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, FIRST + 6);
 }
 
 #[test]

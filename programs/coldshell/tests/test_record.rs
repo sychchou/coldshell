@@ -10,7 +10,8 @@ use {
 const FIRST: u32 = 12;
 
 fn a_run(shells: u8) -> (Env, solana_keypair::Keypair) {
-    let mut env = setup(shell_start(FIRST) + 60);
+    // A run always starts in the next shell, so the stake is placed in the one before.
+    let mut env = setup(shell_start(FIRST - 1) + 60);
     let user = new_user(&mut env.svm, 50 * USDC);
     enter(&mut env, &user, shells, 10 * USDC).unwrap();
     (env, user)
@@ -70,7 +71,8 @@ fn a_day_past_the_end_of_the_run_is_refused() {
 
 #[test]
 fn the_seventieth_day_of_a_ten_shell_run_still_fits() {
-    let mut env = setup(shell_start(FIRST) + 60);
+    // A run always starts in the next shell, so the stake is placed in the one before.
+    let mut env = setup(shell_start(FIRST - 1) + 60);
     let user = new_user(&mut env.svm, 50 * USDC);
     enter(&mut env, &user, 10, 10 * USDC).unwrap();
 

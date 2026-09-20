@@ -5,7 +5,8 @@ use {coldshell::constants::DAY_SECONDS, common::*, solana_keypair::Keypair, sola
 const FIRST: u32 = 7;
 
 fn a_run(shells: u8, stake: u64) -> (Env, Keypair) {
-    let mut env = setup(shell_start(FIRST) + 60);
+    // A run always starts in the next shell, so the stake is placed in the one before.
+    let mut env = setup(shell_start(FIRST - 1) + 60);
     let user = new_user(&mut env.svm, 500 * USDC);
     enter(&mut env, &user, shells, stake).unwrap();
     (env, user)
@@ -16,10 +17,10 @@ fn week(offset: u8) -> Vec<u16> {
     (first..first + 7).collect()
 }
 
-/// The week as a participant lives it: pay on a Saturday, start the Monday after, record Monday
+/// The week as a participant lives it: pay midweek, start the Monday after, record Monday
 /// through Sunday, seal Sunday's minute on the following Monday, and get the money on Tuesday.
 #[test]
-fn a_saturday_entry_runs_the_following_week() {
+fn a_stake_runs_the_following_week() {
     let mut env = setup(shell_start(FIRST) + 5 * DAY_SECONDS);
     let user = new_user(&mut env.svm, 500 * USDC);
     enter(&mut env, &user, 1, 10 * USDC).unwrap();

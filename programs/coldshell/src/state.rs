@@ -118,14 +118,14 @@ pub fn current_shell(now: i64) -> Result<u32> {
     u32::try_from(elapsed / WEEK_SECONDS + 1).map_err(|_| ErrorCode::MathOverflow.into())
 }
 
-/// The shell a run paid for at `now` begins in. Pay on Monday and the week that just started is
-/// yours; pay any later in the week and the run begins next Monday, because a week you cannot
-/// finish is not a week worth staking on.
+/// The shell a run paid for at `now` begins in: always the next one.
+///
+/// A week already under way cannot be joined at all. Letting someone in a day or two late would
+/// sell them a week they had already lost part of, and the screen would then have to explain why
+/// the shell it just called running is also the shell being bought. Pay any time up to Sunday
+/// midnight and the run starts on Monday.
 pub fn starting_shell(now: i64) -> Result<u32> {
-    let shell = current_shell(now)?;
-    let began = now - (now - SHELL_EPOCH_TS) % WEEK_SECONDS;
-    if now < began + START_GRACE_SECONDS {
-        return Ok(shell);
-    }
-    shell.checked_add(1).ok_or(ErrorCode::MathOverflow.into())
+    current_shell(now)?
+        .checked_add(1)
+        .ok_or(ErrorCode::MathOverflow.into())
 }

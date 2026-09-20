@@ -23,7 +23,7 @@ fn enter_locks_the_stake() {
 
     let run = run_state(&env.svm, &user.pubkey());
     assert_eq!(run.user, user.pubkey());
-    assert_eq!(run.first_shell, 5);
+    assert_eq!(run.first_shell, 6); // paid in shell 5, runs from 6
     assert_eq!(run.shells, 3);
     assert_eq!(run.stake, 30 * USDC);
     assert_eq!(run.days, 0);
@@ -43,24 +43,36 @@ fn a_participant_needs_no_sol() {
     assert_eq!(env.svm.get_balance(&user.pubkey()).unwrap_or(0), 0);
 }
 
-/// Shells begin on Mondays. Paying on the Monday joins the week that just started; paying any
-/// later in the week starts the run on the next one, because a week you cannot finish is not a
-/// week worth staking on.
+/// A run always begins in the next shell. The week already under way cannot be joined at any
+/// point in it, including the moment it starts: it would be selling somebody a week they had
+/// already lost part of.
 #[test]
-fn a_run_begins_on_a_monday() {
-    let cases: [(&str, i64, u32); 5] = [
-        ("monday 00:00", 0, 20),
-        ("monday 23:59", DAY_SECONDS - 1, 20),
-        ("tuesday 00:00", DAY_SECONDS, 21),
-        ("saturday", 5 * DAY_SECONDS, 21),
-        ("sunday 23:59", WEEK_SECONDS - 1, 21),
+fn a_run_always_begins_in_the_next_shell() {
+    let cases: [(&str, i64); 5] = [
+        ("monday 00:00", 0),
+        ("monday 23:59", DAY_SECONDS - 1),
+        ("tuesday 00:00", DAY_SECONDS),
+        ("saturday", 5 * DAY_SECONDS),
+        ("sunday 23:59", WEEK_SECONDS - 1),
     ];
-    for (name, offset, expected) in cases {
+    for (name, offset) in cases {
         let mut env = setup(shell_start(20) + offset);
         let user = new_user(&mut env.svm, 10 * USDC);
         enter(&mut env, &user, 1, 10 * USDC).unwrap();
-        assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, expected, "{name}");
+        assert_eq!(run_state(&env.svm, &user.pubkey()).first_shell, 21, "{name}");
     }
+}
+
+/// And the first day of that shell is not recordable the moment the stake is placed — a run
+/// bought on a tuesday waits nearly a week before there is anything to do.
+#[test]
+fn nothing_can_be_recorded_until_the_run_starts() {
+    let mut env = setup(shell_start(20) + DAY_SECONDS);
+    let user = new_user(&mut env.svm, 10 * USDC);
+    enter(&mut env, &user, 1, 10 * USDC).unwrap();
+
+    let err = record(&mut env, &user, 0).unwrap_err();
+    assert!(err.contains("Custom(6004)"), "{err}");
 }
 
 #[test]
