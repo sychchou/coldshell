@@ -171,10 +171,32 @@ terminal.** Recording a minute of yourself with no preview is recording blind, a
 the one thing the browser does genuinely well.
 
 So the browser keeps the camera and the whole interface, and what gets installed is a **local
-agent** — a background process listening on localhost that the site talks to. The clips go to it
-instead of to us; at the end it joins them with a real ffmpeg, which is also what makes a film of
-a ten-week run possible at all, since a browser cannot hold one. Nothing about the screen changes
-and the participant never types a command.
+agent**. The clips go to it instead of to us; at the end it joins them with a real ffmpeg, which
+is also what makes a film of a ten-week run possible at all, since a browser cannot hold one.
+Nothing about the screen changes and the participant never types a command.
+
+**The agent serves the app rather than the site calling the agent**, which is the opposite of the
+obvious arrangement and is not a preference. Chrome now gates requests from a public page to a
+local address behind a **Local Network Access** permission, and it does not degrade politely:
+tested against the deployed site in Chrome 153, `fetch('http://127.0.0.1:…')` fails with no
+network activity at all — no preflight reaches the agent, and no permission prompt appears, with
+a real click or without one. `targetAddressSpace`, `Access-Control-Allow-Private-Network` and an
+image load were all refused the same way. The site cannot talk to the agent, and waiting for that
+to change is not a plan.
+
+Serving from the agent removes the problem instead of fighting it. `http://127.0.0.1` is a
+**secure context**, so the camera, WebCrypto and the file pickers are all there — that was
+checked, not assumed — and the app is same-origin with the agent, so there is no permission, no
+CORS and no mixed content anywhere in it. The agent proxies `/api` to the real server exactly as
+Vercel's rewrite does today, which means the app runs unmodified.
+
+It has a pleasant side effect: the same rule that stopped us reaching the agent stops every other
+page reaching it too. The agent is only addressable by what it serves itself.
+
+The public site keeps everything that is not recording — what this is, the rules, the community,
+registering — and offers a link to `http://localhost`, which is a top-level navigation and not
+subject to any of the above. Somebody without the agent simply finds nothing there, so "is it
+installed" answers itself.
 
 Installing it can be one pasted line — `curl … | sh`, the way rustup and bun and Homebrew itself
 are installed. That is worth knowing for a second reason: **a binary installed from a terminal is
@@ -375,12 +397,15 @@ waits, or it takes the trial's five runs with it.
   replaces three things that were separately on this list: object storage (nothing to store),
   encrypting in the browser (the wrong half of the capsule), and a CLI (you cannot see your face
   in a terminal). Before building any of it, two answers are needed:
-  - **Does a signature come back identical every time?** Sign the same sentence twice in Phantom,
-    in Backpack and in the burner, and compare the bytes. Ed25519 says it must; wallets are not
-    ed25519, they are software. If it does not hold, the key cannot be derived this way and the
-    design fails quietly, losing films rather than erroring.
-  - **Can an `https` page `fetch` from `http://localhost`?** Chrome treats localhost as trusted,
-    so it should. If it cannot, there is no agent, and an hour spent now saves the rest.
+  - **Does a signature come back identical every time?** **Half answered.** WebCrypto Ed25519
+    signs the same sentence identically across five runs and across a re-imported key, and the
+    HKDF key derived from it is stable — which covers the burner, since that is the same code
+    path. Phantom and Backpack still need a human to click, because nothing else can make them
+    sign. If it does not hold there, the key cannot be derived this way and the design fails
+    quietly, losing films rather than erroring.
+  - ~~Can an `https` page `fetch` from `http://localhost`?~~ **Answered: no.** Chrome's Local
+    Network Access permission refuses it outright and never prompts. The agent serves the app
+    instead — see [the capsule](#the-capsule). Checked in Chrome 153 against the deployed site.
 - **Lower the bitrate.** 1.2 Mbps at 720p is generous for a face talking; 600 kbps at 480p takes
   a minute from about 12 MB to about 4.5 MB. One line, and two thirds of the storage question
   goes away while the storage question still exists.
