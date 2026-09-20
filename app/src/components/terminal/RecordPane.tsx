@@ -33,9 +33,10 @@ function reason(err: unknown) {
 }
 
 /**
- * One block per day of the run, in order. A day that was missed and a day that has not come yet
- * are both unfilled, and the difference between them is the only thing anybody wants to know
- * after they slip — so the blocks are coloured rather than merely counted.
+ * One block per day of the run, in order. The bar fills with time — every day that has begun is
+ * a block, whether or not anything was recorded in it — and the colour says how that day went.
+ * A day gone and a day not yet arrived look nothing alike, which is the only thing anybody wants
+ * to know the moment they slip.
  */
 function Days({ marks }: { marks: DayMark[] }) {
   const done = marks.filter((m) => m === 'done').length

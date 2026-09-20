@@ -5,8 +5,7 @@ import { fetchRun, shellStart, shellState, type Run, type ShellState } from './r
 import { today } from './shell'
 
 /**
- * What became of one day. A day that was missed and a day that has not arrived are both empty on
- * the bar, and telling them apart is the whole question somebody asks when they slip.
+ * What became of one day: recorded, still recordable, gone, or not yet begun.
  */
 export type DayMark = 'done' | 'open' | 'missed' | 'ahead'
 

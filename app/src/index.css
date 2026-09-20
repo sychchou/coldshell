@@ -1836,9 +1836,9 @@ button.nav-link:focus-visible {
   letter-spacing: -0.05em;
 }
 
-/* A day still inside its window is worth doing something about; a day gone is worth knowing
-   about. Everything else is quiet. */
-.term-meter [data-mark='open'] {
+/* The bar fills with time: every day that has begun is a block. What the block says is how that
+   day went — done, lost, or still undecided, which is the plain ink between the two. */
+.term-meter [data-mark='done'] {
   color: var(--command);
 }
 
