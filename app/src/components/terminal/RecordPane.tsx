@@ -30,7 +30,10 @@ type Stage =
   | { kind: 'error'; message: string }
 
 /** Each command's output, kept in the order it was run. */
-type Entry = { id: number; command: 'camera' } | { id: number; command: 'example'; question: number }
+type Entry =
+  | { id: number; command: 'camera' }
+  | { id: number; command: 'example'; question: number }
+  | { id: number; command: 'memo' }
 
 function reason(err: unknown) {
   const name = err instanceof Error ? err.name : ''
@@ -331,6 +334,8 @@ export function RecordPane({
   useCommands(
     {
       chips: [
+        // A place to leave yourself a line. Nothing writes it down yet, and it says so.
+        { key: 'memo', label: 'memo', onClick: () => setLog((all) => [...all, { id: nextId.current++, command: 'memo' }]) },
         ...chips(),
         ...(cameraOn && missing === 'shell' ? [{ key: 'register', label: 'register', onClick: onRegister }] : []),
         ...(cameraOn ? [{ key: 'example', label: 'example', onClick: askAnother }] : []),
@@ -408,7 +413,14 @@ export function RecordPane({
       )}
 
       {log.map((entry) =>
-        entry.command === 'example' ? (
+        entry.command === 'memo' ? (
+          <div className="term-entry" key={entry.id}>
+            <p className="term-prompt">memo</p>
+            <p className="term-line term-dim">
+              a line to yourself, kept where the minute is. not built yet.
+            </p>
+          </div>
+        ) : entry.command === 'example' ? (
           <div className="term-entry" key={entry.id}>
             <p className="term-prompt">example</p>
             <p className="term-line">{QUESTIONS[entry.question]}</p>

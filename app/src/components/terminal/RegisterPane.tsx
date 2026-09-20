@@ -129,7 +129,7 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
               key: 'calendar',
               label: 'calendar',
               // The first thing worth doing is seeing which weeks are on offer.
-              tone: !order.includes('calendar') && !run.run ? ('yes' as const) : undefined,
+              tone: !order.includes('calendar') ? ('yes' as const) : undefined,
               onClick: () => open('calendar'),
             },
             // Green is the next thing to do and only ever one thing: weeks, then stake, then
@@ -137,13 +137,13 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
             {
               key: 'shells',
               label: shellsDone === null ? 'weeks' : 'edit weeks',
-              tone: order.includes('calendar') && shellsDone === null && !run.run ? ('yes' as const) : undefined,
+              tone: order.includes('calendar') && shellsDone === null ? ('yes' as const) : undefined,
               onClick: () => open('shells'),
             },
             {
               key: 'stake',
               label: stakeDone === null ? 'stake' : 'edit stake',
-              tone: shellsDone !== null && stakeDone === null && !run.run ? ('yes' as const) : undefined,
+              tone: shellsDone !== null && stakeDone === null ? ('yes' as const) : undefined,
               onClick: () => open('stake'),
             },
             ...(ready
@@ -284,8 +284,9 @@ export function RegisterPane({ active, run }: { active: boolean; run: RunView })
       )}
       {run.run && paid.kind === 'idle' && (
         <p className="term-line term-dim">
-          this wallet already has a run open — shell {run.run.firstShell}
-          {run.run.shells > 1 && ` – ${run.run.firstShell + run.run.shells - 1}`}. one at a time.
+          this wallet is already in shell {run.run.firstShell}
+          {run.run.shells > 1 && ` – ${run.run.firstShell + run.run.shells - 1}`}. a wallet holds
+          one run at a time, so the next one can be placed once that has been collected and closed.
         </p>
       )}
       {ready && !publicKey && <p className="term-line term-bad">connect a wallet to pay.</p>}
