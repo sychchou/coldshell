@@ -768,66 +768,61 @@ export type Coldshell = {
     },
     {
       "code": 6003,
-      "name": "alreadyRecorded",
-      "msg": "That day is already recorded."
-    },
-    {
-      "code": 6004,
       "name": "dayNotStarted",
       "msg": "That day has not started yet."
     },
     {
-      "code": 6005,
+      "code": 6004,
       "name": "recordingClosed",
       "msg": "That day can no longer be recorded."
     },
     {
-      "code": 6006,
+      "code": 6005,
       "name": "invalidShell",
       "msg": "That shell is not part of this run."
     },
     {
-      "code": 6007,
+      "code": 6006,
       "name": "shellNotOver",
       "msg": "That shell is still running."
     },
     {
-      "code": 6008,
+      "code": 6007,
       "name": "weekIncomplete",
       "msg": "A day of that shell is missing."
     },
     {
-      "code": 6009,
+      "code": 6008,
       "name": "alreadyClaimed",
       "msg": "That shell has already been claimed."
     },
     {
-      "code": 6010,
+      "code": 6009,
       "name": "alreadySwept",
       "msg": "That shell has already been swept."
     },
     {
-      "code": 6011,
+      "code": 6010,
       "name": "claimWindowClosed",
       "msg": "The four weeks to claim that shell have passed."
     },
     {
-      "code": 6012,
+      "code": 6011,
       "name": "claimsPending",
       "msg": "That shell was finished and can still be claimed."
     },
     {
-      "code": 6013,
+      "code": 6012,
       "name": "shellsPending",
       "msg": "Every shell has to be settled before the run can be closed."
     },
     {
-      "code": 6014,
+      "code": 6013,
       "name": "unauthorized",
       "msg": "Only the participant or the treasury can do that."
     },
     {
-      "code": 6015,
+      "code": 6014,
       "name": "mathOverflow",
       "msg": "Arithmetic overflowed."
     }
@@ -840,7 +835,8 @@ export type Coldshell = {
         "",
         "Nothing here judges the recording — the program cannot see it and does not want to. What it",
         "does is put the moment and the clip's hash in the ledger, where neither the participant nor",
-        "the platform can move them afterwards."
+        "the platform can move them afterwards. A day may be recorded more than once; the bit is the",
+        "promise kept, and each hash is a minute of it."
       ],
       "type": {
         "kind": "struct",
@@ -944,7 +940,7 @@ export type Coldshell = {
     {
       "name": "claimWindowSeconds",
       "type": "i64",
-      "value": "16800"
+      "value": "2419200"
     },
     {
       "name": "daysPerShell",
@@ -954,7 +950,7 @@ export type Coldshell = {
     {
       "name": "daySeconds",
       "type": "i64",
-      "value": "600"
+      "value": "86400"
     },
     {
       "name": "maxShells",
@@ -983,12 +979,12 @@ export type Coldshell = {
     {
       "name": "recordEarlySeconds",
       "type": "i64",
-      "value": "350"
+      "value": "50400"
     },
     {
       "name": "recordLateSeconds",
       "type": "i64",
-      "value": "1200"
+      "value": "172800"
     },
     {
       "name": "runSeed",
@@ -1001,17 +997,7 @@ export type Coldshell = {
     {
       "name": "shellEpochTs",
       "type": "i64",
-      "value": "1789866000"
-    },
-    {
-      "name": "startGraceSeconds",
-      "docs": [
-        "How long after a shell begins you can still join it. Shells always start on a Monday, so a",
-        "run paid for midweek waits for the next one; Monday itself still counts, which is where the",
-        "\"at most six days of waiting\" comes from."
-      ],
-      "type": "i64",
-      "value": "600"
+      "value": "1789344000"
     },
     {
       "name": "treasury",
@@ -1032,7 +1018,7 @@ export type Coldshell = {
     {
       "name": "weekSeconds",
       "type": "i64",
-      "value": "4200"
+      "value": "604800"
     }
   ]
 };
