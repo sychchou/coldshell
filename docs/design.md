@@ -155,20 +155,44 @@ a way "we don't look" is not, and holding thousands of people's private videos f
 liability that eventually, certainly, goes wrong.
 
 ```
-run ends → joined → delivered → grace period (2–4 weeks) → originals and film both deleted
+during the run       the minutes, and only the minutes
+the run ends         the film is joined — and the minutes are burned
+grace (4 weeks)      the film, and only the film
+grace ends           the film is burned
 ```
 
+**The minutes are never downloadable.** Not during the run, not at the end, not ever. The one
+thing anybody gets is the film, which is why the film cannot be treated as a cache of the
+minutes: after the run ends there is nothing left to rebuild it from, by design.
+
+That settles a question worth writing down so it stops being reopened. The hash on chain is a
+**commitment made at the time** — this file, this long, this day — and not a receipt the
+participant redeems later against a copy they hold. They do not hold one. Nobody does.
+
+- **Build the film before burning anything, and check it.** The one ordering that loses a
+  person's month is burning the minutes on a film that turned out to be zero bytes. The minutes
+  stay until the film exists, plays, and is the length it should be.
 - **Never burn before delivery is confirmed.** Deleting after a bounced email erases somebody's
-  month for good. State the grace period and the burn date from the start, and say it once more on
-  the status screen as a line like `your shell burns in 6 days`.
+  month for good. State the grace period and the burn date from the start, and say it once more
+  on the status screen as a line like `your shell burns in 6 days`.
 - The grace period has to outlast the dispute period. Once it is deleted there is nothing left to
   check a "the check was wrong" complaint against.
-- **Delivery carries the original clips alongside the joined film.** Then the participant can
-  compare the original hashes against the chain, and the ability to verify after the fact remains
-  **with them alone**.
-- The film is deleted too. Deleting the originals while keeping the film is keeping the content.
+- **Four weeks of grace collides with the four-week claim window**, which is `CLAIM_WINDOW_SECONDS
+  = 28 days` and starts at the same moment. Somebody who leaves their money until the last day
+  would arrive to collect it and find the film burned that morning — and arriving to collect is
+  exactly when most people would think to ask for it. The grace has to start later than the run
+  ends, or run longer than the claim window does.
 - **Storage versioning and lifecycle backups stay off.** With them on, deletion is not deletion.
   Temporary files from ffmpeg get cleaned up with the rest.
+
+This is also the storage plan, which is not obvious until the numbers are written down. Nothing
+is deleted today, so the disk grows as `everybody who ever took part × everything they recorded`
+and has no ceiling at any volume size. With the burn it becomes `whoever is in flight × one run,
+plus four weeks of finished films` — a number that stops growing. The ceiling on one run is
+`days × 5 clips × 10 minutes`, since a recording stops itself at ten minutes and the server
+refuses anything over 128 MB; ten people for a week is 1.7 GB if they each record a minute a day
+and 31 GB if they all fill every day. Both stages hold roughly the same bytes, so the total does
+not double — except while a film is being joined, which is the one moment both exist.
 
 What stays on chain is the hash — proof of the existence of something that is no longer anywhere.
 
@@ -245,11 +269,12 @@ waits, or it takes the trial's five runs with it.
 
 ### After the trial
 
-- **Delivery, then the burn.** None of the burn exists. The films, the clips and the tokens are
-  all kept forever right now, which is the opposite of what this document promises and the one
-  place where the promise is currently louder than the code. It needs: a delivery that is
-  recorded as confirmed, a grace period after it, then deletion of originals and film together,
-  and `your shell burns in 6 days` on the screen well before it happens.
+- **The burn.** None of it exists: the clips, the films and the download tokens are all kept
+  forever, which is the opposite of what this document promises and the one place where the
+  promise is louder than the code. The shape is in [The burn](#the-burn) — minutes burned when
+  the film is joined, film burned when the grace runs out — and what it needs is a delivery
+  recorded as confirmed, a grace that outlasts the claim window, `your shell burns in 6 days` on
+  the screen before it happens, and the check that the film is real before the minutes go.
 - **Automatic posting at settlement.** Today the film is posted because somebody pressed send,
   which makes the mail worth about as much as the download beside it. Posting it the moment the
   week settles is the version worth having, and it needs an address the server keeps — which is
