@@ -81,6 +81,6 @@ clock or the other; there is no switch afterwards.
 
 ## Status
 
-Devnet. Rebuilt from [proof-of-grind](https://github.com/sychchou/proof-of-grind), which counted
-camera time in a Discord room — same escrow, a different kind of proof, and this time no proof at
-all beyond the fact that you showed up.
+Devnet. Rebuilt from an earlier project that counted camera time in a Discord room — same
+escrow, a different kind of proof, and this time no proof at all beyond the fact that you
+showed up.
