@@ -105,6 +105,8 @@ export function RecordPane({
   const { run, day, marks, claimable } = view
   // Anyone may open the camera and record; only sealing needs a wallet and a place in a shell.
   const missing = !publicKey ? 'wallet' : !run ? 'shell' : null
+  // Today's minute is already on the ledger, so there is nothing left to send for it.
+  const sealedToday = day !== null && marks[day] === 'done'
   // The shell the day being recorded belongs to — derived from the run, as the program derives it,
   // so the clip and the instruction cannot disagree about which week this is.
   const shell = run && day !== null ? run.firstShell + Math.floor(day / DAYS_PER_SHELL) : now.shell
@@ -260,7 +262,9 @@ export function RecordPane({
                   : stage.kind === 'marking'
                     ? [{ key: 'marking', label: 'signing…', disabled: true }]
                     : stage.kind === 'sealed'
-                      ? [{ key: 'again', label: 'record again', onClick: start }]
+                      ? sealedToday
+                        ? []
+                        : [{ key: 'again', label: 'record again', onClick: start }]
                       : stage.kind === 'done'
                         ? [
                             { key: 'again', label: 'record again', onClick: start },
@@ -272,7 +276,7 @@ export function RecordPane({
                               // Sealing sends the clip away and marks the day, so it needs both a
                               // wallet and a day of a run to mark.
                               onClick: () => sealClip(stage.clip, stage.stored),
-                              disabled: !publicKey || day === null,
+                              disabled: !publicKey || day === null || sealedToday,
                             },
                           ]
                         : []),
@@ -292,7 +296,7 @@ export function RecordPane({
       ],
       back: log.length > 0 ? back : undefined,
     },
-    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, claimable.join(), claiming],
+    [stage.kind, longEnough, elapsed, mimeType, log.length, cameraOn, missing, publicKey, day, sealedToday, claimable.join(), claiming],
     active,
   )
 
@@ -409,7 +413,11 @@ export function RecordPane({
             <dd>{stage.clip.sha256.slice(0, 16)}…</dd>
           </dl>
           {stage.kind === 'done' && !stage.error && !stage.stored && (
-            <p className="term-line term-dim">nothing has left this browser yet.</p>
+            <p className="term-line term-dim">
+              {sealedToday
+                ? `day ${(day ?? 0) + 1} is already on chain. one minute a day is all it takes.`
+                : 'nothing has left this browser yet.'}
+            </p>
           )}
           {stage.kind === 'done' && stage.error && (
             <>
@@ -432,7 +440,7 @@ export function RecordPane({
           {stage.kind === 'sealed' && (
             <>
               <p className="term-line">
-                sealed. day {(day ?? 0) + 1} of shell {shell}.
+                sealed. day {(day ?? 0) + 1} of shell {shell}. that is today done.
               </p>
               <p className="term-line term-dim">
                 <a href={explorerTxUrl(stage.signature)} target="_blank" rel="noreferrer">

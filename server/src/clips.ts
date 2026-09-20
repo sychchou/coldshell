@@ -88,6 +88,12 @@ export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).
  * what goes on chain, and a truncated upload would otherwise be sealed as if it were whole.
  */
 export async function store(meta: ClipMeta, bytes: Uint8Array) {
+  // A day whose clip is already on chain is finished. Overwriting it would leave a recording
+  // that hashes to something the ledger never saw — the one thing this whole arrangement exists
+  // to prevent. Before the signature there is nothing to protect, so a retake is fine.
+  const dated = await readNote(meta.wallet, meta.shell, meta.day)
+  if (dated?.signature) throw new ClipError('that day is already on chain — its clip cannot be replaced')
+
   if (bytes.byteLength < config.clips.minBytes) throw new ClipError('that is too small to be a minute')
   if (bytes.byteLength > config.clips.maxBytes) throw new ClipError('that is larger than a clip may be')
 
